@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { getSupabase } from "@/lib/supabase";
 import OpenAI from "openai";
-import type { SuggestionOption } from "@/types/editor";
+import type { Intent, SuggestionOption } from "@/types/editor";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -22,6 +22,31 @@ const MOCK_DATA: Record<string, SuggestionOption[]> = {
     { index: 0, text: "In simple terms, the morning sunlight was coming through the trees and making shadows on the ground.", styleShift: "simpler" },
     { index: 1, text: "What this describes is the visual effect of sunrise filtering through leaves, casting varied shadows across a garden walkway.", styleShift: "more_analytical" },
     { index: 2, text: "The author is painting a picture of early morning: light breaking through foliage, creating a play of light and dark on the path below.", styleShift: "more_reflective" },
+  ],
+  shorter: [
+    { index: 0, text: "Morning light fell through the canopy, dappling the garden path.", styleShift: "most_concise" },
+    { index: 1, text: "Sunlight broke through the trees, casting shadows on the path.", styleShift: "simple_trim" },
+    { index: 2, text: "Light filtered through leaves, scattering patterns across the ground.", styleShift: "minimalist" },
+  ],
+  longer: [
+    { index: 0, text: "The soft morning light filtered gently through the dense, leafy canopy overhead, casting long, dappled shadows that danced and shifted across the winding garden path, which was still damp with the cool remnants of the night's dew.", styleShift: "more_elaborate" },
+    { index: 1, text: "Through the interlaced branches of the ancient trees, the early sunlight poured in golden shafts, illuminating the garden path in a patchwork of warm light and cool shadow that seemed to breathe with the rhythm of the breeze.", styleShift: "more_atmospheric" },
+    { index: 2, text: "As dawn gave way to morning, the sunlight found its way through the thick canopy, breaking into countless beams that painted the garden path with shifting mosaics of light and dark — a quiet spectacle that only those who pause can truly see.", styleShift: "more_poetic_expanded" },
+  ],
+  more_formal: [
+    { index: 0, text: "The morning sunlight penetrated the arboreal canopy, producing elongated, dappled shadows upon the garden pathway.", styleShift: "formal_academic" },
+    { index: 1, text: "Early light diffused through the foliage, resulting in an interplay of illumination and shadow across the adjacent pathway.", styleShift: "formal_neutral" },
+    { index: 2, text: "Solar radiance permeated the vegetative cover, casting variegated patterns of light and shade along the garden thoroughfare.", styleShift: "formal_elevated" },
+  ],
+  more_casual: [
+    { index: 0, text: "The morning sun peeked through the trees, you know, just scattering light and shadows all over the garden path.", styleShift: "casual_conversational" },
+    { index: 1, text: "So the sun was coming through the canopy, making all these cool shadow patterns on the path.", styleShift: "casual_relaxed" },
+    { index: 2, text: "Morning light kinda spilled through the leaves, leaving a mess of shadows across the garden walkway.", styleShift: "casual_colloquial" },
+  ],
+  translate_en: [
+    { index: 0, text: "The morning light filtered softly through the canopy, casting long, dappled shadows across the garden path.", styleShift: "direct_translation" },
+    { index: 1, text: "Gentle morning light streamed through the tree cover, throwing shifting shadows onto the garden walkway.", styleShift: "natural_english" },
+    { index: 2, text: "Soft beams of morning sun broke through the leafy overhang, scattering patches of light and shadow along the garden path.", styleShift: "idiomatic_english" },
   ],
 };
 
@@ -60,6 +85,16 @@ function buildIntentInstruction(intent: string): string {
       return "Continue writing from the selected position. Match the style, tone, and rhythm of the surrounding text. Write 2-4 sentences.";
     case "explain":
       return "Explain the selected text in simpler, clearer terms. Keep it concise and accessible.";
+    case "shorter":
+      return "Make this text more concise. Cut word count by ~30% while preserving meaning. Remove redundant words and tighten the prose.";
+    case "longer":
+      return "Expand this text with more detail and depth. Add context, examples, or sensory details. Make it richer without being verbose.";
+    case "more_formal":
+      return "Rewrite in a more formal, professional tone. Use precise vocabulary. Avoid contractions and colloquialisms. Elevate the register.";
+    case "more_casual":
+      return "Rewrite in a more casual, conversational tone. Use everyday language and contractions. Make it feel relaxed and approachable.";
+    case "translate_en":
+      return "Translate the selected text to English. Preserve tone and nuance. If already in English, improve clarity and naturalness.";
     default:
       return "Rewrite the selected text.";
   }

@@ -7,6 +7,7 @@ import AIBubble from "@/components/AIBubble";
 import SuggestionPreview from "@/components/SuggestionPreview";
 import DocumentList from "@/components/DocumentList";
 import StyleSetup from "@/components/StyleSetup";
+import CommandPalette from "@/components/CommandPalette";
 import { useUIStore } from "@/lib/store";
 import type {
   Intent,
@@ -35,6 +36,9 @@ export default function Home() {
 
   // ── Style profile modal ───────────────────────────────────────
   const [styleOpen, setStyleOpen] = useState(false);
+
+  // ── Command palette ───────────────────────────────────────────
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   // ── Write mode store ──────────────────────────────────────────
   const selectedText = useUIStore((s) => s.selectedText);
@@ -308,6 +312,43 @@ export default function Home() {
     triggerAutosave();
   }, [triggerAutosave]);
 
+  // ── Keyboard shortcuts ─────────────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+
+      // ⌘K / Ctrl+K: Open command palette
+      if (mod && e.key === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      // ⌘Enter / Ctrl+Enter: Quick rewrite
+      if (mod && e.key === "Enter" && selectedText) {
+        e.preventDefault();
+        handleIntent("rewrite");
+        return;
+      }
+
+      // Escape: Close command palette
+      if (e.key === "Escape" && commandPaletteOpen) {
+        setCommandPaletteOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedText, commandPaletteOpen, handleIntent]);
+
+  // ── Command palette handler ────────────────────────────────────
+  const handleCommand = useCallback(
+    (intent: Intent) => {
+      handleIntent(intent);
+    },
+    [handleIntent]
+  );
+
   return (
     <div className="min-h-screen flex flex-col">
       <TopBar
@@ -336,6 +377,11 @@ export default function Home() {
         isOpen={styleOpen}
         onClose={() => setStyleOpen(false)}
         onProfileSaved={handleStyleProfileSaved}
+      />
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onCommand={handleCommand}
       />
     </div>
   );

@@ -14,7 +14,15 @@ export interface StyleConfig {
   imagery: string[];
 }
 
-export type Intent = "rewrite" | "continue" | "explain";
+export type Intent =
+  | "rewrite"
+  | "continue"
+  | "explain"
+  | "shorter"
+  | "longer"
+  | "more_formal"
+  | "more_casual"
+  | "translate_en";
 
 export interface SuggestionOption {
   index: number;
