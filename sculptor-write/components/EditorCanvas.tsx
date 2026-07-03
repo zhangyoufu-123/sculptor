@@ -7,14 +7,21 @@ import { useCallback, useEffect, useRef } from "react";
 
 interface EditorCanvasProps {
   onEditorReady?: (editor: NonNullable<ReturnType<typeof useEditor>>) => void;
+  onBlankDoubleClick?: () => void;
 }
 
-export default function EditorCanvas({ onEditorReady }: EditorCanvasProps) {
+export default function EditorCanvas({
+  onEditorReady,
+  onBlankDoubleClick,
+}: EditorCanvasProps) {
   const setSelectedText = useUIStore((s) => s.setSelectedText);
   const setSelectionRect = useUIStore((s) => s.setSelectionRect);
   const setWritingState = useUIStore((s) => s.setWritingState);
   const clearSuggestions = useUIStore((s) => s.clearSuggestions);
   const editorRef = useRef<HTMLDivElement>(null);
+
+  // Track last click for double-click detection on blank paragraphs
+  const lastClickRef = useRef<{ time: number; pos: number }>({ time: 0, pos: -1 });
 
   const editor = useEditor({
     extensions: getEditorExtensions(),
@@ -29,6 +36,35 @@ export default function EditorCanvas({ onEditorReady }: EditorCanvasProps) {
           }
           return false;
         },
+      },
+      handleClick: (view, pos, event) => {
+        if (!onBlankDoubleClick) return false;
+
+        const node = view.state.doc.nodeAt(pos);
+        // Check if this is an empty paragraph (no content or only whitespace)
+        if (
+          node &&
+          node.type.name === "paragraph" &&
+          node.textContent.trim() === "" &&
+          !node.childCount
+        ) {
+          const now = Date.now();
+          if (
+            now - lastClickRef.current.time < 400 &&
+            lastClickRef.current.pos === pos
+          ) {
+            // Double-click on empty paragraph detected
+            lastClickRef.current = { time: 0, pos: -1 };
+            onBlankDoubleClick();
+            return true;
+          }
+          lastClickRef.current = { time: now, pos };
+        }
+        return false;
+      },
+      handleDoubleClick: () => {
+        // Let handleClick detect double-clicks on blanks
+        return false;
       },
     },
     onCreate: ({ editor }) => {

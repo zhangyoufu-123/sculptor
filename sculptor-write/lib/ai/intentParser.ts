@@ -18,5 +18,7 @@ export function buildIntentInstruction(intent: Intent): string {
       return "Rewrite in a more casual, conversational tone. Use everyday language and contractions. Make it feel relaxed and approachable.";
     case "translate_en":
       return "Translate the selected text to English. Preserve tone and nuance. If already in English, improve clarity and naturalness.";
+    case "custom":
+      return "The user has provided a custom instruction. Follow it precisely while working with the selected text. Match the surrounding style and tone.";
   }
 }

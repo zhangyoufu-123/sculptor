@@ -95,6 +95,8 @@ function buildIntentInstruction(intent: string): string {
       return "Rewrite in a more casual, conversational tone. Use everyday language and contractions. Make it feel relaxed and approachable.";
     case "translate_en":
       return "Translate the selected text to English. Preserve tone and nuance. If already in English, improve clarity and naturalness.";
+    case "custom":
+      return "The user has provided a custom instruction. Follow it precisely while working with the selected text. Match the surrounding style and tone.";
     default:
       return "Rewrite the selected text.";
   }
@@ -103,7 +105,7 @@ function buildIntentInstruction(intent: string): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { selectedText, intent } = body;
+    const { selectedText, intent, customText } = body;
 
     if (!selectedText || !intent) {
       return Response.json(
@@ -139,6 +141,7 @@ export async function POST(request: NextRequest) {
     const systemPrompt = `You are a writing assistant inside a Word-like editor. ${buildStylePrompt(styleProfile)}
 
 ${buildIntentInstruction(intent)}
+${intent === "custom" && customText ? `\nCustom instruction from user: "${customText}"\nFollow this instruction precisely.` : ""}
 
 Selected text: """${selectedText}"""
 

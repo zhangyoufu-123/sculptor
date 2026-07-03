@@ -74,12 +74,14 @@ interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
   onCommand: (intent: Intent) => void;
+  onCustomCommand?: (text: string) => void;
 }
 
 export default function CommandPalette({
   isOpen,
   onClose,
   onCommand,
+  onCustomCommand,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -95,6 +97,9 @@ export default function CommandPalette({
     );
   });
 
+  // Show "custom intent" option when query doesn't match any command
+  const showCustomOption = query.trim().length > 0 && filteredCommands.length === 0;
+
   // Reset state when opening
   useEffect(() => {
     if (isOpen) {
@@ -109,29 +114,34 @@ export default function CommandPalette({
 
   // Clamp selected index when filtered results change
   useEffect(() => {
-    if (selectedIndex >= filteredCommands.length) {
-      setSelectedIndex(Math.max(0, filteredCommands.length - 1));
+    const maxIndex = filteredCommands.length - 1 + (showCustomOption ? 1 : 0);
+    if (selectedIndex > maxIndex) {
+      setSelectedIndex(Math.max(0, maxIndex));
     }
-  }, [filteredCommands.length, selectedIndex]);
+  }, [filteredCommands.length, selectedIndex, showCustomOption]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      const totalItems = filteredCommands.length + (showCustomOption ? 1 : 0);
+
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
-          setSelectedIndex((prev) =>
-            prev < filteredCommands.length - 1 ? prev + 1 : 0
-          );
+          setSelectedIndex((prev) => (prev < totalItems - 1 ? prev + 1 : 0));
           break;
         case "ArrowUp":
           e.preventDefault();
-          setSelectedIndex((prev) =>
-            prev > 0 ? prev - 1 : filteredCommands.length - 1
-          );
+          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : totalItems - 1));
           break;
         case "Enter":
           e.preventDefault();
-          if (filteredCommands[selectedIndex]) {
+          if (showCustomOption && selectedIndex === filteredCommands.length) {
+            // User selected custom free-text option
+            if (onCustomCommand) {
+              onCustomCommand(query.trim());
+            }
+            onClose();
+          } else if (filteredCommands[selectedIndex]) {
             onCommand(filteredCommands[selectedIndex].id);
             onClose();
           }
@@ -142,7 +152,7 @@ export default function CommandPalette({
           break;
       }
     },
-    [filteredCommands, selectedIndex, onCommand, onClose]
+    [filteredCommands, selectedIndex, onCommand, onClose, showCustomOption, query, onCustomCommand]
   );
 
   const handleSelect = useCallback(
@@ -204,7 +214,7 @@ export default function CommandPalette({
               setSelectedIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Type a command or search..."
+            placeholder="Type a command or natural language instruction..."
             style={{
               flex: 1,
               background: "transparent",
@@ -236,7 +246,7 @@ export default function CommandPalette({
             padding: "8px 0",
           }}
         >
-          {filteredCommands.length === 0 && (
+          {!showCustomOption && filteredCommands.length === 0 && (
             <div
               style={{
                 padding: "32px 16px",
@@ -318,6 +328,61 @@ export default function CommandPalette({
               )}
             </div>
           ))}
+
+          {/* Custom free-text option */}
+          {showCustomOption && (
+            <div
+              onClick={() => {
+                if (onCustomCommand) {
+                  onCustomCommand(query.trim());
+                }
+                onClose();
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "10px 16px",
+                cursor: "pointer",
+                backgroundColor:
+                  selectedIndex === filteredCommands.length
+                    ? "#2a2a2a"
+                    : "transparent",
+                borderLeft:
+                  selectedIndex === filteredCommands.length
+                    ? "2px solid #c4a565"
+                    : "2px solid transparent",
+                transition: "background-color 0.1s",
+              }}
+              onMouseEnter={() => setSelectedIndex(filteredCommands.length)}
+            >
+              <span style={{ fontSize: 18, marginRight: 12, flexShrink: 0 }}>
+                ✨
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    color: "#c4a565",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  Send: &ldquo;{query.trim()}&rdquo;
+                </div>
+                <div
+                  style={{
+                    color: "#888",
+                    fontSize: 12,
+                    marginTop: 1,
+                  }}
+                >
+                  Send as custom AI instruction
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer hint */}
@@ -334,6 +399,7 @@ export default function CommandPalette({
           <span>↑↓ navigate</span>
           <span>↵ select</span>
           <span>esc close</span>
+          <span>⌘J open</span>
         </div>
       </div>
     </div>

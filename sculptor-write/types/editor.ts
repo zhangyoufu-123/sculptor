@@ -22,7 +22,8 @@ export type Intent =
   | "longer"
   | "more_formal"
   | "more_casual"
-  | "translate_en";
+  | "translate_en"
+  | "custom";
 
 export interface SuggestionOption {
   index: number;

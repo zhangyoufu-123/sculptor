@@ -8,6 +8,7 @@ import SuggestionPreview from "@/components/SuggestionPreview";
 import DocumentList from "@/components/DocumentList";
 import StyleSetup from "@/components/StyleSetup";
 import CommandPalette from "@/components/CommandPalette";
+import EchoWall from "@/components/EchoWall";
 import { useUIStore } from "@/lib/store";
 import type {
   Intent,
@@ -22,6 +23,9 @@ import type { Editor } from "@tiptap/react";
 
 const WRITE_TIMEOUT_MS = 45_000;
 const AUTOSAVE_DELAY_MS = 2000;
+const ANALYSIS_POLL_MS = 15_000;
+const PAUSE_DETECT_MS = 8_000;
+const PAUSE_CHECK_MS = 1_000;
 
 export default function Home() {
   const editorRef = useRef<Editor | null>(null);
@@ -40,12 +44,19 @@ export default function Home() {
   // ── Command palette ───────────────────────────────────────────
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
+  // ── Echo Wall state ───────────────────────────────────────────
+  const [echoWallAnalysis, setEchoWallAnalysis] = useState("");
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [echoWallInspiration, setEchoWallInspiration] = useState("");
+  const [inspirationLoading, setInspirationLoading] = useState(false);
+
   // ── Write mode store ──────────────────────────────────────────
   const selectedText = useUIStore((s) => s.selectedText);
   const setWritingState = useUIStore((s) => s.setWritingState);
   const addSuggestion = useUIStore((s) => s.addSuggestion);
   const clearSuggestions = useUIStore((s) => s.clearSuggestions);
   const setStyleProfile = useUIStore((s) => s.setStyleProfile);
+  const styleProfile = useUIStore((s) => s.styleProfile);
 
   const handleEditorReady = useCallback((editor: Editor) => {
     editorRef.current = editor;
@@ -170,13 +181,19 @@ export default function Home() {
     [saveDocument]
   );
 
-  // ── Editor change handler (for autosave) ─────────────────────
+  // ── Editor change handler (for autosave + pause detection) ────
+  const lastKeypressTime = useRef(Date.now());
+
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor || !currentDocId) return;
 
     const handleUpdate = () => {
       triggerAutosave();
+      lastKeypressTime.current = Date.now();
+
+      // Clear inspiration when user resumes typing
+      setEchoWallInspiration("");
     };
 
     editor.on("update", handleUpdate);
@@ -184,6 +201,129 @@ export default function Home() {
       editor.off("update", handleUpdate);
     };
   }, [currentDocId, triggerAutosave]);
+
+  // ── 15s Polling for analysis ──────────────────────────────────
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const editor = editorRef.current;
+      if (!editor) return;
+
+      // Only poll if editor has content
+      const fullText = editor.getText();
+      if (!fullText.trim()) return;
+
+      // Get last ~500 chars
+      const recentText = fullText.slice(-500);
+
+      setAnalysisLoading(true);
+      try {
+        const res = await fetch("/api/write/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recentText,
+            styleProfile: styleProfile || undefined,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.analysis) {
+            setEchoWallAnalysis(data.analysis);
+          }
+        }
+      } catch {
+        // Silent fail — analysis is non-critical
+      } finally {
+        setAnalysisLoading(false);
+      }
+    }, ANALYSIS_POLL_MS);
+
+    return () => clearInterval(interval);
+  }, [styleProfile]);
+
+  // ── 8s Pause Detection for inspiration ────────────────────────
+  const inspirationFetchedRef = useRef(false);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      // Don't re-trigger if already shown inspiration
+      if (inspirationFetchedRef.current) return;
+
+      const editor = editorRef.current;
+      if (!editor) return;
+
+      const fullText = editor.getText();
+      if (!fullText.trim()) return;
+
+      const paused = Date.now() - lastKeypressTime.current > PAUSE_DETECT_MS;
+      if (!paused) return;
+
+      // User paused 8s — fetch inspiration
+      inspirationFetchedRef.current = true;
+      setInspirationLoading(true);
+
+      try {
+        // Get last paragraph as context
+        const paragraphs = fullText.split("\n").filter((p) => p.trim());
+        const lastParagraph = paragraphs[paragraphs.length - 1] || fullText.slice(-300);
+
+        const res = await fetch("/api/write/suggest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            selectedText: lastParagraph,
+            intent: "continue",
+          }),
+        });
+
+        if (res.ok) {
+          const reader = res.body?.getReader();
+          if (reader) {
+            const decoder = new TextDecoder();
+            let buffer = "";
+            let inspirationText = "";
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split("\n");
+              buffer = lines.pop() || "";
+
+              for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                const data = line.slice(6);
+                let event: StreamEvent;
+                try {
+                  event = JSON.parse(data);
+                } catch {
+                  continue;
+                }
+                if (event.type === "option" && event.text) {
+                  // Take first suggestion only
+                  if (!inspirationText) {
+                    inspirationText = event.text;
+                  }
+                }
+              }
+            }
+
+            if (inspirationText) {
+              setEchoWallInspiration(inspirationText);
+            }
+          }
+        }
+      } catch {
+        // Silent fail
+      } finally {
+        setInspirationLoading(false);
+      }
+    }, PAUSE_CHECK_MS);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // ── Style profile callback ────────────────────────────────────
   const handleStyleProfileSaved = useCallback(
@@ -204,7 +344,7 @@ export default function Home() {
   const writeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleIntent = useCallback(
-    async (intent: Intent) => {
+    async (intent: Intent, customText?: string) => {
       if (!selectedText) return;
 
       // Abort any in-flight request to prevent races
@@ -228,13 +368,18 @@ export default function Home() {
       }, WRITE_TIMEOUT_MS);
 
       try {
+        const body: Record<string, unknown> = {
+          selectedText,
+          intent,
+        };
+        if (intent === "custom" && customText) {
+          body.customText = customText;
+        }
+
         const response = await fetch("/api/write/suggest", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            selectedText,
-            intent,
-          }),
+          body: JSON.stringify(body),
           signal: controller.signal,
         });
 
@@ -312,12 +457,44 @@ export default function Home() {
     triggerAutosave();
   }, [triggerAutosave]);
 
+  // ── EchoWall: adopt inspiration ───────────────────────────────
+  const handleAdoptInspiration = useCallback(
+    (text: string) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+
+      // Insert inspiration at cursor position
+      editor
+        .chain()
+        .focus()
+        .insertContent(" " + text)
+        .run();
+
+      setEchoWallInspiration("");
+      triggerAutosave();
+    },
+    [triggerAutosave]
+  );
+
+  // ── Blank line double-click ───────────────────────────────────
+  const handleBlankDoubleClick = useCallback(() => {
+    // Open the command palette for custom prompt mode
+    setCommandPaletteOpen(true);
+  }, []);
+
   // ── Keyboard shortcuts ─────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
 
-      // ⌘K / Ctrl+K: Open command palette
+      // ⌘J / Ctrl+J: Open command palette
+      if (mod && e.key === "j") {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      // ⌘K / Ctrl+K: Open command palette (legacy)
       if (mod && e.key === "k") {
         e.preventDefault();
         setCommandPaletteOpen((prev) => !prev);
@@ -349,6 +526,13 @@ export default function Home() {
     [handleIntent]
   );
 
+  const handleCustomCommand = useCallback(
+    (text: string) => {
+      handleIntent("custom", text);
+    },
+    [handleIntent]
+  );
+
   return (
     <div className="min-h-screen flex flex-col">
       <TopBar
@@ -363,8 +547,17 @@ export default function Home() {
           currentDocId={currentDocId}
           onToggle={setSidebarCollapsed}
         />
-        <main className="flex-1 relative" style={{ marginLeft: sidebarCollapsed ? 0 : 240 }}>
-          <EditorCanvas onEditorReady={handleEditorReady} />
+        <main
+          className="flex-1 relative"
+          style={{
+            marginLeft: sidebarCollapsed ? 0 : 240,
+            marginRight: 320,
+          }}
+        >
+          <EditorCanvas
+            onEditorReady={handleEditorReady}
+            onBlankDoubleClick={handleBlankDoubleClick}
+          />
           <AIBubble onIntent={handleIntent} />
           <SuggestionPreview
             editor={editorRef.current}
@@ -372,6 +565,14 @@ export default function Home() {
             onDone={handleDone}
           />
         </main>
+        <EchoWall
+          analysisText={echoWallAnalysis}
+          analysisLoading={analysisLoading}
+          inspiration={echoWallInspiration}
+          inspirationLoading={inspirationLoading}
+          onAdopt={handleAdoptInspiration}
+          onStyleSetupClick={() => setStyleOpen(true)}
+        />
       </div>
       <StyleSetup
         isOpen={styleOpen}
@@ -382,6 +583,7 @@ export default function Home() {
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
         onCommand={handleCommand}
+        onCustomCommand={handleCustomCommand}
       />
     </div>
   );
