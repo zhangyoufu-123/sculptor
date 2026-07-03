@@ -45,8 +45,9 @@ export default function InputPanel({ onAnalyze, loading, error }: InputPanelProp
       {/* Tab switcher */}
       <div className="flex border-b" style={{ borderColor: "#1f1f1f" }}>
         <button
-          onClick={() => setActiveTab("url")}
-          className="flex-1 px-4 py-3 text-sm font-medium transition-colors"
+          onClick={() => !loading && setActiveTab("url")}
+          disabled={loading}
+          className="flex-1 px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             background: activeTab === "url" ? "#1a1a1a" : "transparent",
             color: activeTab === "url" ? "#e5e5e5" : "#6b6b6b",
@@ -58,8 +59,9 @@ export default function InputPanel({ onAnalyze, loading, error }: InputPanelProp
           🔗 Paste URL
         </button>
         <button
-          onClick={() => setActiveTab("text")}
-          className="flex-1 px-4 py-3 text-sm font-medium transition-colors"
+          onClick={() => !loading && setActiveTab("text")}
+          disabled={loading}
+          className="flex-1 px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             background: activeTab === "text" ? "#1a1a1a" : "transparent",
             color: activeTab === "text" ? "#e5e5e5" : "#6b6b6b",

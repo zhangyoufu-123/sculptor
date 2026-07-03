@@ -9,6 +9,7 @@ function createClient(): OpenAI {
   return new OpenAI({
     apiKey: process.env.DEEPSEEK_API_KEY || "",
     baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
+    timeout: 30_000, // 30s timeout per API call
   });
 }
 
@@ -39,6 +40,24 @@ async function deepseekCall(
 }
 
 // ---------------------------------------------------------------------------
+// Defensive JSON parse helper
+// ---------------------------------------------------------------------------
+
+function safeParse(raw: string, label: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error(`Expected JSON object but got ${typeof parsed}`);
+    }
+    return parsed as Record<string, unknown>;
+  } catch (err) {
+    console.error(`Failed to parse ${label} response:`, (err as Error).message);
+    console.error("Raw response (first 500 chars):", raw.slice(0, 500));
+    return {};
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Step 2: ANALYZE — extract core claim, arguments, assumptions
 // ---------------------------------------------------------------------------
 
@@ -58,12 +77,12 @@ export async function analyze(text: string): Promise<InitialAnalysis> {
     0.3,
   );
 
-  const parsed = JSON.parse(raw);
+  const parsed = safeParse(raw, "analyze");
 
   return {
-    core_claim: parsed.core_claim || "",
-    arguments: parsed.arguments || [],
-    assumptions: parsed.assumptions || [],
+    core_claim: typeof parsed.core_claim === "string" ? parsed.core_claim : "",
+    arguments: Array.isArray(parsed.arguments) ? parsed.arguments.filter((a): a is string => typeof a === "string") : [],
+    assumptions: Array.isArray(parsed.assumptions) ? parsed.assumptions.filter((a): a is string => typeof a === "string") : [],
   };
 }
 
@@ -96,11 +115,15 @@ Review this analysis critically. Identify logical gaps, missing evidence, and ra
 
   const raw = await deepseekCall(CRITIQUE_SYSTEM_PROMPT, userContent, 0.5);
 
-  const parsed = JSON.parse(raw);
+  const parsed = safeParse(raw, "critique");
 
   return {
-    logical_issues: parsed.logical_issues || [],
-    missing_evidence: parsed.missing_evidence || [],
+    logical_issues: Array.isArray(parsed.logical_issues)
+      ? parsed.logical_issues.filter((a): a is string => typeof a === "string")
+      : [],
+    missing_evidence: Array.isArray(parsed.missing_evidence)
+      ? parsed.missing_evidence.filter((a): a is string => typeof a === "string")
+      : [],
     confidence:
       typeof parsed.confidence === "number"
         ? Math.max(0, Math.min(100, parsed.confidence))
@@ -148,23 +171,33 @@ Produce a refined, balanced final analysis that addresses the critique. Include 
 
   const raw = await deepseekCall(REFINE_SYSTEM_PROMPT, userContent, 0.3);
 
-  const parsed = JSON.parse(raw);
+  const parsed = safeParse(raw, "refine");
 
-  const verdict = parsed.verdict || {};
+  const verdict = parsed.verdict && typeof parsed.verdict === "object" && !Array.isArray(parsed.verdict)
+    ? (parsed.verdict as Record<string, unknown>)
+    : {};
 
   return {
-    core_claim: parsed.core_claim || initial.core_claim,
-    bull_case: parsed.bull_case || [],
-    bear_case: parsed.bear_case || [],
-    hidden_assumptions: parsed.hidden_assumptions || [],
-    decision_risks: parsed.decision_risks || [],
+    core_claim: typeof parsed.core_claim === "string" ? parsed.core_claim : initial.core_claim,
+    bull_case: Array.isArray(parsed.bull_case)
+      ? parsed.bull_case.filter((a): a is string => typeof a === "string")
+      : [],
+    bear_case: Array.isArray(parsed.bear_case)
+      ? parsed.bear_case.filter((a): a is string => typeof a === "string")
+      : [],
+    hidden_assumptions: Array.isArray(parsed.hidden_assumptions)
+      ? parsed.hidden_assumptions.filter((a): a is string => typeof a === "string")
+      : [],
+    decision_risks: Array.isArray(parsed.decision_risks)
+      ? parsed.decision_risks.filter((a): a is string => typeof a === "string")
+      : [],
     verdict: {
       score:
         typeof verdict.score === "number"
           ? Math.max(0, Math.min(100, verdict.score))
           : 50,
-      label: ["Strong", "Medium", "Weak"].includes(verdict.label)
-        ? verdict.label
+      label: ["Strong", "Medium", "Weak"].includes(verdict.label as string)
+        ? (verdict.label as "Strong" | "Medium" | "Weak")
         : "Medium",
     },
   };

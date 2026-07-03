@@ -14,6 +14,9 @@ import type { Intent, SuggestionOption, StreamEvent } from "@/types/editor";
 import type { AgentTrace } from "@/types/analysis";
 import type { Editor } from "@tiptap/react";
 
+const ANALYZE_TIMEOUT_MS = 45_000;
+const WRITE_TIMEOUT_MS = 45_000;
+
 export default function Home() {
   const editorRef = useRef<Editor | null>(null);
   const [currentIntent, setCurrentIntent] = useState<Intent>("rewrite");
@@ -39,14 +42,33 @@ export default function Home() {
   }, []);
 
   // ── Write: handle AI suggestions ──────────────────────────────────
+  const writeAbortRef = useRef<AbortController | null>(null);
+  const writeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleIntent = useCallback(
     async (intent: Intent) => {
       if (!selectedText) return;
+
+      // Abort any in-flight request to prevent races
+      if (writeAbortRef.current) {
+        writeAbortRef.current.abort();
+      }
+      if (writeTimeoutRef.current) {
+        clearTimeout(writeTimeoutRef.current);
+      }
+
+      const controller = new AbortController();
+      writeAbortRef.current = controller;
 
       setCurrentIntent(intent);
       setWritingState("loading");
       clearSuggestions();
       setErrorMessage(null);
+
+      // 45s timeout
+      writeTimeoutRef.current = setTimeout(() => {
+        controller.abort();
+      }, WRITE_TIMEOUT_MS);
 
       try {
         const response = await fetch("/api/write/suggest", {
@@ -57,6 +79,7 @@ export default function Home() {
             intent,
             style,
           }),
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -82,7 +105,15 @@ export default function Home() {
           for (const line of lines) {
             if (!line.startsWith("data: ")) continue;
             const data = line.slice(6);
-            const event: StreamEvent = JSON.parse(data);
+
+            // Defensive JSON parsing for SSE events
+            let event: StreamEvent;
+            try {
+              event = JSON.parse(data);
+            } catch {
+              console.warn("Skipping malformed SSE event:", data.slice(0, 80));
+              continue;
+            }
 
             if (event.type === "option" && event.text) {
               const opt: SuggestionOption = {
@@ -99,11 +130,23 @@ export default function Home() {
           }
         }
       } catch (err) {
+        // Ignore abort errors (user triggered a new request)
+        if (controller.signal.aborted) return;
+
         const msg = err instanceof Error ? err.message : "Something went wrong";
         console.error("AI suggest error:", msg);
         clearSuggestions();
         setWritingState("idle");
         setErrorMessage(msg);
+      } finally {
+        // Cleanup timeout if this is still the active controller
+        if (writeAbortRef.current === controller) {
+          writeAbortRef.current = null;
+        }
+        if (writeTimeoutRef.current) {
+          clearTimeout(writeTimeoutRef.current);
+          writeTimeoutRef.current = null;
+        }
       }
     },
     [selectedText, style, setWritingState, addSuggestion, clearSuggestions],
@@ -114,17 +157,37 @@ export default function Home() {
   }, []);
 
   // ── Analyze: handle analyze request ───────────────────────────────
+  const analyzeAbortRef = useRef<AbortController | null>(null);
+  const analyzeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleAnalyze = useCallback(
     async (url?: string, text?: string) => {
+      // Abort any in-flight request to prevent races
+      if (analyzeAbortRef.current) {
+        analyzeAbortRef.current.abort();
+      }
+      if (analyzeTimeoutRef.current) {
+        clearTimeout(analyzeTimeoutRef.current);
+      }
+
+      const controller = new AbortController();
+      analyzeAbortRef.current = controller;
+
       setAnalysisLoading(true);
       setAnalysisError(null);
       setAnalysisTrace(null);
+
+      // 45s timeout
+      analyzeTimeoutRef.current = setTimeout(() => {
+        controller.abort();
+      }, ANALYZE_TIMEOUT_MS);
 
       try {
         const response = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(url ? { url } : { text }),
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -133,13 +196,32 @@ export default function Home() {
         }
 
         const trace: AgentTrace = await response.json();
-        setAnalysisTrace(trace);
+
+        // Only update state if this request wasn't aborted
+        if (!controller.signal.aborted) {
+          setAnalysisTrace(trace);
+        }
       } catch (err) {
+        // Ignore abort errors (user triggered a new request or timeout)
+        if (controller.signal.aborted) {
+          setAnalysisError("Request timed out or was cancelled");
+          return;
+        }
+
         const msg = err instanceof Error ? err.message : "Something went wrong";
         console.error("Analyze error:", msg);
         setAnalysisError(msg);
       } finally {
         setAnalysisLoading(false);
+
+        // Cleanup timeout if this is still the active controller
+        if (analyzeAbortRef.current === controller) {
+          analyzeAbortRef.current = null;
+        }
+        if (analyzeTimeoutRef.current) {
+          clearTimeout(analyzeTimeoutRef.current);
+          analyzeTimeoutRef.current = null;
+        }
       }
     },
     [],

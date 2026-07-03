@@ -8,8 +8,18 @@ export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
-    const body: AnalyzeRequest = await request.json();
-    const { url, text } = body;
+    // Defensive JSON body parsing
+    let body: AnalyzeRequest;
+    try {
+      body = await request.json();
+    } catch {
+      return Response.json(
+        { error: "Invalid JSON in request body" },
+        { status: 400 },
+      );
+    }
+
+    const { url, text } = body || {};
 
     // ── Step 1: PERCEIVE — extract article text ──────────────────────
 
@@ -95,9 +105,38 @@ export async function POST(request: NextRequest) {
     const crit = await critique(articleText, initial);
     const final = await refine(articleText, initial, crit);
 
-    // ── Step 5: OUTPUT — return full trace ───────────────────────────
+    // ── Step 5: OUTPUT — validate and return full trace ─────────────
 
-    const trace: AgentTrace = { initial, critique: crit, final };
+    // Defensive: ensure all required fields exist
+    const trace: AgentTrace = {
+      initial: {
+        core_claim: initial?.core_claim ?? "",
+        arguments: Array.isArray(initial?.arguments) ? initial.arguments : [],
+        assumptions: Array.isArray(initial?.assumptions) ? initial.assumptions : [],
+      },
+      critique: {
+        logical_issues: Array.isArray(crit?.logical_issues) ? crit.logical_issues : [],
+        missing_evidence: Array.isArray(crit?.missing_evidence) ? crit.missing_evidence : [],
+        confidence: typeof crit?.confidence === "number"
+          ? Math.max(0, Math.min(100, crit.confidence))
+          : 50,
+      },
+      final: {
+        core_claim: final?.core_claim ?? "",
+        bull_case: Array.isArray(final?.bull_case) ? final.bull_case : [],
+        bear_case: Array.isArray(final?.bear_case) ? final.bear_case : [],
+        hidden_assumptions: Array.isArray(final?.hidden_assumptions) ? final.hidden_assumptions : [],
+        decision_risks: Array.isArray(final?.decision_risks) ? final.decision_risks : [],
+        verdict: {
+          score: typeof final?.verdict?.score === "number"
+            ? Math.max(0, Math.min(100, final.verdict.score))
+            : 50,
+          label: ["Strong", "Medium", "Weak"].includes(final?.verdict?.label as string)
+            ? (final.verdict.label as "Strong" | "Medium" | "Weak")
+            : "Medium",
+        },
+      },
+    };
 
     return Response.json(trace);
   } catch (err) {
