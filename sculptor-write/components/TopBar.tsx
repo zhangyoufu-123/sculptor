@@ -1,64 +1,60 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useUIStore } from "@/lib/store";
-
-export type AppMode = "write" | "analyze";
+import type { SaveStatus } from "@/types/editor";
 
 interface TopBarProps {
-  mode?: AppMode;
-  onModeChange?: (mode: AppMode) => void;
+  documentTitle: string;
+  onTitleChange: (title: string) => void;
+  saveStatus: SaveStatus;
+  onStyleClick?: () => void;
 }
 
-export default function TopBar({ mode = "write", onModeChange }: TopBarProps) {
+export default function TopBar({
+  documentTitle,
+  onTitleChange,
+  saveStatus,
+  onStyleClick,
+}: TopBarProps) {
   const writingState = useUIStore((s) => s.writingState);
-  const stylePanelOpen = useUIStore((s) => s.stylePanelOpen);
-  const setStylePanelOpen = useUIStore((s) => s.setStylePanelOpen);
-  const style = useUIStore((s) => s.style);
-  const updateIdentity = useUIStore((s) => s.updateIdentity);
-  const updateRhythm = useUIStore((s) => s.updateRhythm);
-  const addImagery = useUIStore((s) => s.addImagery);
-  const removeImagery = useUIStore((s) => s.removeImagery);
-
-  const [imageryInput, setImageryInput] = useState("");
-  const panelRef = useRef<HTMLDivElement>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(documentTitle);
 
   const statusText =
     writingState === "loading" || writingState === "streaming"
       ? "DeepSeek connected"
-      : "Ready";
+      : saveStatus === "saving"
+        ? "Saving..."
+        : saveStatus === "unsaved"
+          ? "Unsaved"
+          : "Saved";
+
   const statusClass =
     writingState === "loading"
       ? "thinking"
       : writingState === "streaming"
         ? "streaming"
-        : "idle";
+        : saveStatus === "saving"
+          ? "thinking"
+          : "idle";
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setStylePanelOpen(false);
-      }
+  const handleTitleSave = useCallback(() => {
+    const trimmed = titleDraft.trim();
+    if (trimmed && trimmed !== documentTitle) {
+      onTitleChange(trimmed);
+    } else {
+      setTitleDraft(documentTitle);
     }
-    if (stylePanelOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [stylePanelOpen, setStylePanelOpen]);
-
-  const handleAddImagery = () => {
-    const tag = imageryInput.trim().toLowerCase();
-    if (tag) {
-      addImagery(tag);
-      setImageryInput("");
-    }
-  };
+    setEditingTitle(false);
+  }, [titleDraft, documentTitle, onTitleChange]);
 
   return (
     <header
       style={{
         height: 48,
-        borderBottom: "1px solid var(--border)",
+        background: "#0d0d0d",
+        borderBottom: "1px solid #1a1a1a",
         display: "flex",
         alignItems: "center",
         padding: "0 24px",
@@ -66,186 +62,128 @@ export default function TopBar({ mode = "write", onModeChange }: TopBarProps) {
           '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         fontSize: 13,
         position: "relative",
+        zIndex: 10,
       }}
     >
-      <span style={{ fontWeight: 600, color: "var(--text)", marginRight: 24 }}>
-        Untitled
-      </span>
+      {/* Document Title */}
+      {editingTitle ? (
+        <input
+          autoFocus
+          value={titleDraft}
+          onChange={(e) => setTitleDraft(e.target.value)}
+          onBlur={handleTitleSave}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleTitleSave();
+            if (e.key === "Escape") {
+              setTitleDraft(documentTitle);
+              setEditingTitle(false);
+            }
+          }}
+          style={{
+            fontWeight: 600,
+            color: "#e0d8c8",
+            background: "#141414",
+            border: "1px solid #c4a565",
+            borderRadius: 4,
+            padding: "2px 8px",
+            fontSize: 13,
+            outline: "none",
+            width: 200,
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          }}
+        />
+      ) : (
+        <span
+          onClick={() => {
+            setTitleDraft(documentTitle);
+            setEditingTitle(true);
+          }}
+          style={{
+            fontWeight: 600,
+            color: "#e0d8c8",
+            marginRight: 24,
+            cursor: "pointer",
+            padding: "2px 8px",
+            borderRadius: 4,
+            border: "1px solid transparent",
+            transition: "border-color 0.15s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "#2a2a2a";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "transparent";
+          }}
+          title="Click to rename"
+        >
+          {documentTitle}
+        </span>
+      )}
 
+      {/* Save Status */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: 6,
-          color: "var(--muted)",
+          color: "#8a8578",
         }}
       >
         <span className={`status-dot ${statusClass}`} />
         <span>{statusText}</span>
       </div>
 
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-
-        {/* Mode switch */}
-        <div
-          style={{
-            display: "flex",
-            background: "var(--border)",
-            borderRadius: 8,
-            padding: 2,
-            gap: 2,
-          }}
-        >
+      {/* Center: Style Profile button */}
+      <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+        {onStyleClick && (
           <button
-            onClick={() => onModeChange?.("write")}
+            onClick={onStyleClick}
             style={{
-              padding: "5px 14px",
+              padding: "4px 12px",
               borderRadius: 6,
-              border: "none",
-              background: mode === "write" ? "white" : "transparent",
-              color: mode === "write" ? "var(--accent)" : "var(--muted)",
+              border: "1px solid #2a2a2a",
+              background: "transparent",
+              color: "#8a8578",
               fontSize: 12,
-              fontWeight: 500,
               cursor: "pointer",
               fontFamily:
                 '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
               transition: "all 0.15s ease",
-              boxShadow:
-                mode === "write" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "#c4a565";
+              e.currentTarget.style.color = "#c4a565";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "#2a2a2a";
+              e.currentTarget.style.color = "#8a8578";
             }}
           >
-            ✏️ Write
+            Style Profile
           </button>
-          <button
-            onClick={() => onModeChange?.("analyze")}
-            style={{
-              padding: "5px 14px",
-              borderRadius: 6,
-              border: "none",
-              background: mode === "analyze" ? "white" : "transparent",
-              color: mode === "analyze" ? "var(--accent)" : "var(--muted)",
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: "pointer",
-              fontFamily:
-                '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-              transition: "all 0.15s ease",
-              boxShadow:
-                mode === "analyze" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-            }}
-          >
-            🔍 Analyze
-          </button>
-        </div>
+        )}
+      </div>
 
-        {/* Style button */}
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setStylePanelOpen(!stylePanelOpen)}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 6,
-              border: "1px solid var(--border)",
-              background: stylePanelOpen ? "var(--ai-highlight)" : "transparent",
-              color: stylePanelOpen ? "var(--accent)" : "var(--muted)",
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: "pointer",
-              fontFamily:
-                '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-            }}
-          >
-            Style {stylePanelOpen ? "▾" : "▸"}
-          </button>
-
-          {stylePanelOpen && (
-            <div className="style-panel" ref={panelRef}>
-              <label>Tone</label>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={style.identity.tone}
-                onChange={(e) =>
-                  updateIdentity({ tone: Number(e.target.value) })
-                }
-              />
-              <div className="range-labels">
-                <span>Formal</span>
-                <span>Casual</span>
-              </div>
-
-              <label>Density</label>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={style.identity.density}
-                onChange={(e) =>
-                  updateIdentity({ density: Number(e.target.value) })
-                }
-              />
-              <div className="range-labels">
-                <span>Dense</span>
-                <span>Airy</span>
-              </div>
-
-              <label>Sentence Length</label>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={style.rhythm.sentenceLength}
-                onChange={(e) =>
-                  updateRhythm({ sentenceLength: Number(e.target.value) })
-                }
-              />
-              <div className="range-labels">
-                <span>Short</span>
-                <span>Long</span>
-              </div>
-
-              <label>Punctuation</label>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={style.rhythm.punctuation}
-                onChange={(e) =>
-                  updateRhythm({ punctuation: Number(e.target.value) })
-                }
-              />
-              <div className="range-labels">
-                <span>Minimal</span>
-                <span>Heavy</span>
-              </div>
-
-              <label>Imagery</label>
-              <div className="imagery-input">
-                <input
-                  value={imageryInput}
-                  onChange={(e) => setImageryInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddImagery();
-                    }
-                  }}
-                  placeholder="Add a tag..."
-                />
-                <button onClick={handleAddImagery}>+</button>
-              </div>
-              <div className="imagery-tags">
-                {style.imagery.map((tag) => (
-                  <span key={tag} className="imagery-tag">
-                    {tag}
-                    <button onClick={() => removeImagery(tag)}>✕</button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+      {/* User avatar placeholder */}
+      <div
+        style={{
+          marginLeft: "auto",
+          width: 28,
+          height: 28,
+          borderRadius: "50%",
+          background: "#3d3520",
+          color: "#c4a565",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 12,
+          fontWeight: 600,
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        }}
+      >
+        U
       </div>
     </header>
   );

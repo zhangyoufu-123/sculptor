@@ -1,47 +1,201 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import TopBar from "@/components/TopBar";
-import type { AppMode } from "@/components/TopBar";
 import EditorCanvas from "@/components/EditorCanvas";
 import AIBubble from "@/components/AIBubble";
 import SuggestionPreview from "@/components/SuggestionPreview";
-import InputPanel from "@/components/InputPanel";
-import AnalysisPanel from "@/components/AnalysisPanel";
-import VerdictCard from "@/components/VerdictCard";
+import DocumentList from "@/components/DocumentList";
+import StyleSetup from "@/components/StyleSetup";
 import { useUIStore } from "@/lib/store";
-import type { Intent, SuggestionOption, StreamEvent } from "@/types/editor";
-import type { AgentTrace } from "@/types/analysis";
+import type {
+  Intent,
+  SuggestionOption,
+  StreamEvent,
+  DocumentListItem,
+  Document,
+  SaveStatus,
+  StyleProfileData,
+} from "@/types/editor";
 import type { Editor } from "@tiptap/react";
 
-const ANALYZE_TIMEOUT_MS = 45_000;
 const WRITE_TIMEOUT_MS = 45_000;
+const AUTOSAVE_DELAY_MS = 2000;
 
 export default function Home() {
   const editorRef = useRef<Editor | null>(null);
   const [currentIntent, setCurrentIntent] = useState<Intent>("rewrite");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // ── Mode state ────────────────────────────────────────────────────
-  const [mode, setMode] = useState<AppMode>("write");
+  // ── Document state ────────────────────────────────────────────
+  const [currentDoc, setCurrentDoc] = useState<Document | null>(null);
+  const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+  const [documentTitle, setDocumentTitle] = useState("Untitled");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // ── Analyze state ─────────────────────────────────────────────────
-  const [analysisTrace, setAnalysisTrace] = useState<AgentTrace | null>(null);
-  const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  // ── Style profile modal ───────────────────────────────────────
+  const [styleOpen, setStyleOpen] = useState(false);
 
-  // ── Write mode store ──────────────────────────────────────────────
+  // ── Write mode store ──────────────────────────────────────────
   const selectedText = useUIStore((s) => s.selectedText);
-  const style = useUIStore((s) => s.style);
   const setWritingState = useUIStore((s) => s.setWritingState);
   const addSuggestion = useUIStore((s) => s.addSuggestion);
   const clearSuggestions = useUIStore((s) => s.clearSuggestions);
+  const setStyleProfile = useUIStore((s) => s.setStyleProfile);
 
   const handleEditorReady = useCallback((editor: Editor) => {
     editorRef.current = editor;
   }, []);
 
-  // ── Write: handle AI suggestions ──────────────────────────────────
+  // ── Autosave ──────────────────────────────────────────────────
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSavingRef = useRef(false);
+
+  const saveDocument = useCallback(
+    async (title?: string, content?: Record<string, unknown>) => {
+      if (!currentDocId) return;
+      if (isSavingRef.current) return;
+
+      isSavingRef.current = true;
+      setSaveStatus("saving");
+
+      try {
+        const body: Record<string, unknown> = {};
+        if (content !== undefined) body.content = content;
+        if (title !== undefined) body.title = title;
+
+        const res = await fetch(`/api/documents/${currentDocId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          throw new Error("Save failed");
+        }
+
+        setSaveStatus("saved");
+      } catch (err) {
+        console.error("Autosave error:", err);
+        setSaveStatus("unsaved");
+      } finally {
+        isSavingRef.current = false;
+      }
+    },
+    [currentDocId]
+  );
+
+  const triggerAutosave = useCallback(
+    (title?: string) => {
+      if (!currentDocId || !editorRef.current) return;
+
+      setSaveStatus("unsaved");
+
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+
+      autosaveTimerRef.current = setTimeout(() => {
+        const json = editorRef.current?.getJSON() ?? null;
+        saveDocument(title, json as Record<string, unknown>);
+      }, AUTOSAVE_DELAY_MS);
+    },
+    [currentDocId, saveDocument]
+  );
+
+  // Cleanup autosave timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, []);
+
+  // ── Document CRUD ─────────────────────────────────────────────
+  const handleOpenDocument = useCallback(
+    async (docItem: DocumentListItem) => {
+      try {
+        const res = await fetch(`/api/documents/${docItem.id}`);
+        if (!res.ok) throw new Error("Failed to load");
+        const data = await res.json();
+        const doc: Document = data.document;
+
+        setCurrentDoc(doc);
+        setCurrentDocId(doc.id);
+        setDocumentTitle(doc.title);
+        setSaveStatus("saved");
+
+        // Load content into editor
+        if (editorRef.current && doc.content) {
+          editorRef.current.commands.setContent(doc.content);
+        }
+      } catch (err) {
+        console.error("Error opening document:", err);
+      }
+    },
+    []
+  );
+
+  const handleNewDocument = useCallback(async () => {
+    try {
+      const res = await fetch("/api/documents", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to create");
+      const data = await res.json();
+      const doc: Document = data.document;
+
+      setCurrentDoc(doc);
+      setCurrentDocId(doc.id);
+      setDocumentTitle("Untitled");
+      setSaveStatus("saved");
+
+      // Clear editor
+      if (editorRef.current) {
+        editorRef.current.commands.clearContent();
+      }
+    } catch (err) {
+      console.error("Error creating document:", err);
+    }
+  }, []);
+
+  const handleTitleChange = useCallback(
+    (newTitle: string) => {
+      setDocumentTitle(newTitle);
+      saveDocument(newTitle);
+    },
+    [saveDocument]
+  );
+
+  // ── Editor change handler (for autosave) ─────────────────────
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !currentDocId) return;
+
+    const handleUpdate = () => {
+      triggerAutosave();
+    };
+
+    editor.on("update", handleUpdate);
+    return () => {
+      editor.off("update", handleUpdate);
+    };
+  }, [currentDocId, triggerAutosave]);
+
+  // ── Style profile callback ────────────────────────────────────
+  const handleStyleProfileSaved = useCallback(
+    (profile: StyleProfileData) => {
+      setStyleProfile({
+        tone: profile.tone,
+        avg_sentence_length: profile.avg_sentence_length,
+        common_imagery: profile.common_imagery,
+        formality: String(profile.formality),
+        keywords: profile.keywords,
+      });
+    },
+    [setStyleProfile]
+  );
+
+  // ── Write: handle AI suggestions ──────────────────────────────
   const writeAbortRef = useRef<AbortController | null>(null);
   const writeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -63,7 +217,6 @@ export default function Home() {
       setCurrentIntent(intent);
       setWritingState("loading");
       clearSuggestions();
-      setErrorMessage(null);
 
       // 45s timeout
       writeTimeoutRef.current = setTimeout(() => {
@@ -77,7 +230,6 @@ export default function Home() {
           body: JSON.stringify({
             selectedText,
             intent,
-            style,
           }),
           signal: controller.signal,
         });
@@ -137,7 +289,6 @@ export default function Home() {
         console.error("AI suggest error:", msg);
         clearSuggestions();
         setWritingState("idle");
-        setErrorMessage(msg);
       } finally {
         // Cleanup timeout if this is still the active controller
         if (writeAbortRef.current === controller) {
@@ -149,105 +300,29 @@ export default function Home() {
         }
       }
     },
-    [selectedText, style, setWritingState, addSuggestion, clearSuggestions],
+    [selectedText, setWritingState, addSuggestion, clearSuggestions]
   );
 
   const handleDone = useCallback(() => {
-    // cleanup after insert
-  }, []);
-
-  // ── Analyze: handle analyze request ───────────────────────────────
-  const analyzeAbortRef = useRef<AbortController | null>(null);
-  const analyzeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleAnalyze = useCallback(
-    async (url?: string, text?: string) => {
-      // Abort any in-flight request to prevent races
-      if (analyzeAbortRef.current) {
-        analyzeAbortRef.current.abort();
-      }
-      if (analyzeTimeoutRef.current) {
-        clearTimeout(analyzeTimeoutRef.current);
-      }
-
-      const controller = new AbortController();
-      analyzeAbortRef.current = controller;
-
-      setAnalysisLoading(true);
-      setAnalysisError(null);
-      setAnalysisTrace(null);
-
-      // 45s timeout
-      analyzeTimeoutRef.current = setTimeout(() => {
-        controller.abort();
-      }, ANALYZE_TIMEOUT_MS);
-
-      try {
-        const response = await fetch("/api/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(url ? { url } : { text }),
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || "Analysis failed");
-        }
-
-        const trace: AgentTrace = await response.json();
-
-        // Only update state if this request wasn't aborted
-        if (!controller.signal.aborted) {
-          setAnalysisTrace(trace);
-        }
-      } catch (err) {
-        // Ignore abort errors (user triggered a new request or timeout)
-        if (controller.signal.aborted) {
-          setAnalysisError("Request timed out or was cancelled");
-          return;
-        }
-
-        const msg = err instanceof Error ? err.message : "Something went wrong";
-        console.error("Analyze error:", msg);
-        setAnalysisError(msg);
-      } finally {
-        setAnalysisLoading(false);
-
-        // Cleanup timeout if this is still the active controller
-        if (analyzeAbortRef.current === controller) {
-          analyzeAbortRef.current = null;
-        }
-        if (analyzeTimeoutRef.current) {
-          clearTimeout(analyzeTimeoutRef.current);
-          analyzeTimeoutRef.current = null;
-        }
-      }
-    },
-    [],
-  );
-
-  // ── Mode switch handler ───────────────────────────────────────────
-  const handleModeChange = useCallback((newMode: AppMode) => {
-    setMode(newMode);
-    // Clear analyze state when switching away
-    if (newMode === "write") {
-      setAnalysisError(null);
-    }
-    if (newMode === "analyze") {
-      setErrorMessage(null);
-    }
-  }, []);
+    // Trigger autosave after suggestion inserted
+    triggerAutosave();
+  }, [triggerAutosave]);
 
   return (
     <div className="min-h-screen flex flex-col">
-      <TopBar mode={mode} onModeChange={handleModeChange} />
-
-      {mode === "write" ? (
-        /* ================================================================ */
-        /* WRITE MODE                                                        */
-        /* ================================================================ */
-        <main className="flex-1 relative">
+      <TopBar
+        documentTitle={documentTitle}
+        onTitleChange={handleTitleChange}
+        saveStatus={saveStatus}
+        onStyleClick={() => setStyleOpen(true)}
+      />
+      <div style={{ display: "flex", flex: 1 }}>
+        <DocumentList
+          onOpenDocument={handleOpenDocument}
+          currentDocId={currentDocId}
+          onToggle={setSidebarCollapsed}
+        />
+        <main className="flex-1 relative" style={{ marginLeft: sidebarCollapsed ? 0 : 240 }}>
           <EditorCanvas onEditorReady={handleEditorReady} />
           <AIBubble onIntent={handleIntent} />
           <SuggestionPreview
@@ -255,65 +330,13 @@ export default function Home() {
             intent={currentIntent}
             onDone={handleDone}
           />
-          {errorMessage && (
-            <div
-              style={{
-                position: "fixed",
-                bottom: 20,
-                left: "50%",
-                transform: "translateX(-50%)",
-                background: "var(--error-bg, #fee2e2)",
-                color: "var(--error-text, #dc2626)",
-                padding: "8px 16px",
-                borderRadius: 8,
-                fontSize: 13,
-                zIndex: 100,
-              }}
-            >
-              <span>{errorMessage}</span>
-              <button
-                onClick={() => setErrorMessage(null)}
-                style={{ marginLeft: 12, cursor: "pointer", fontWeight: "bold" }}
-              >
-                ✕
-              </button>
-            </div>
-          )}
         </main>
-      ) : (
-        /* ================================================================ */
-        /* ANALYZE MODE                                                      */
-        /* ================================================================ */
-        <main
-          className="flex-1 flex overflow-hidden"
-          style={{ height: "calc(100vh - 48px)" }}
-        >
-          {/* Left panel: Input */}
-          <div className="w-[380px] flex-shrink-0">
-            <InputPanel
-              onAnalyze={handleAnalyze}
-              loading={analysisLoading}
-              error={analysisError}
-            />
-          </div>
-
-          {/* Right panel: Analysis + Verdict */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <AnalysisPanel
-              trace={analysisTrace}
-              loading={analysisLoading}
-            />
-
-            {analysisTrace && (
-              <VerdictCard
-                verdict={analysisTrace.final.verdict}
-                hidden_assumptions={analysisTrace.final.hidden_assumptions}
-                decision_risks={analysisTrace.final.decision_risks}
-              />
-            )}
-          </div>
-        </main>
-      )}
+      </div>
+      <StyleSetup
+        isOpen={styleOpen}
+        onClose={() => setStyleOpen(false)}
+        onProfileSaved={handleStyleProfileSaved}
+      />
     </div>
   );
 }

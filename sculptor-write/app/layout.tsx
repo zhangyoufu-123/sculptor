@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SessionProvider } from "next-auth/react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import "./globals.css";
 
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ErrorBoundary>{children}</ErrorBoundary>
+        <SessionProvider>
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </SessionProvider>
       </body>
     </html>
   );

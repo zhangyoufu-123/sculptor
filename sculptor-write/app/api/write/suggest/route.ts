@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { buildPrompt } from "@/lib/ai/promptBuilder";
+import { auth } from "@/auth";
+import { getSupabase } from "@/lib/supabase";
 import OpenAI from "openai";
 import type { SuggestionOption } from "@/types/editor";
 
@@ -24,19 +25,104 @@ const MOCK_DATA: Record<string, SuggestionOption[]> = {
   ],
 };
 
+function buildStylePrompt(profile: Record<string, unknown> | null): string {
+  if (!profile) {
+    return "Style: balanced, neutral tone. Use natural sentence lengths. Match a general writing style.";
+  }
+
+  const tone = profile.tone || "neutral";
+  const avgLen = profile.avg_sentence_length || 15;
+  const imagery =
+    Array.isArray(profile.common_imagery) && profile.common_imagery.length > 0
+      ? profile.common_imagery.join(", ")
+      : "none specified";
+  const formality = profile.formality || 5;
+  const keywords =
+    Array.isArray(profile.keywords) && profile.keywords.length > 0
+      ? profile.keywords.join(", ")
+      : "none specified";
+
+  return `Style profile:
+- Tone: ${tone}
+- Average sentence length: ${avgLen} words
+- Common imagery: ${imagery}
+- Formality: ${formality}/10
+- Keywords: ${keywords}
+
+Match this style. Provide exactly 3 options.`;
+}
+
+function buildIntentInstruction(intent: string): string {
+  switch (intent) {
+    case "rewrite":
+      return "Rewrite the selected text to match the specified style. Keep the same meaning, facts, and key details.";
+    case "continue":
+      return "Continue writing from the selected position. Match the style, tone, and rhythm of the surrounding text. Write 2-4 sentences.";
+    case "explain":
+      return "Explain the selected text in simpler, clearer terms. Keep it concise and accessible.";
+    default:
+      return "Rewrite the selected text.";
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { selectedText, intent, style } = body;
+    const { selectedText, intent } = body;
 
     if (!selectedText || !intent) {
       return Response.json(
         { error: "Missing selectedText or intent" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     const isMock = process.env.NEXT_PUBLIC_MOCK_MODE === "true";
+
+    // Fetch user's style profile
+    let styleProfile: Record<string, unknown> | null = null;
+    try {
+      const session = await auth();
+      if (session?.user?.id) {
+        const supabase = getSupabase();
+        const { data } = await supabase
+          .from("style_profiles")
+          .select("profile, keywords")
+          .eq("user_id", session.user.id)
+          .single();
+        if (data) {
+          styleProfile = {
+            ...((data.profile as Record<string, unknown>) || {}),
+            keywords: data.keywords || [],
+          };
+        }
+      }
+    } catch {
+      // Non-fatal: proceed without style profile
+    }
+
+    const systemPrompt = `You are a writing assistant inside a Word-like editor. ${buildStylePrompt(styleProfile)}
+
+${buildIntentInstruction(intent)}
+
+Selected text: """${selectedText}"""
+
+Provide exactly 3 distinct options. Each option should differ meaningfully in approach or style.
+
+Respond in JSON format only:
+{
+  "options": [
+    {"text": "...", "style_shift": "more_poetic"},
+    {"text": "...", "style_shift": "more_direct"},
+    {"text": "...", "style_shift": "more_detailed"}
+  ]
+}
+
+Rules:
+- Options must be meaningfully different from each other
+- Each must be valid prose (no markdown, no lists, no bullet points)
+- Total length per option: 1-4 sentences
+- All options must preserve original meaning`;
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -47,10 +133,9 @@ export async function POST(request: NextRequest) {
 
           if (isMock) {
             options = (MOCK_DATA[intent as string] || MOCK_DATA.rewrite).map(
-              (o, i) => ({ ...o, index: i }),
+              (o, i) => ({ ...o, index: i })
             );
           } else {
-            const prompt = buildPrompt(selectedText, intent, style);
             const client = new OpenAI({
               apiKey: process.env.DEEPSEEK_API_KEY || "",
               baseURL:
@@ -62,7 +147,7 @@ export async function POST(request: NextRequest) {
               temperature: 0.7,
               response_format: { type: "json_object" },
               messages: [
-                { role: "system", content: prompt },
+                { role: "system", content: systemPrompt },
                 { role: "user", content: `Selected text: """${selectedText}"""` },
               ],
             });
@@ -76,7 +161,7 @@ export async function POST(request: NextRequest) {
                 index: i,
                 text: o.text,
                 styleShift: o.style_shift || "",
-              }),
+              })
             );
           }
 
@@ -88,23 +173,23 @@ export async function POST(request: NextRequest) {
               styleShift: options[i].styleShift,
             };
             controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+              encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
             );
             await new Promise((r) => setTimeout(r, 300));
           }
 
           controller.enqueue(
             encoder.encode(
-              `data: ${JSON.stringify({ type: "done", total: options.length })}\n\n`,
-            ),
+              `data: ${JSON.stringify({ type: "done", total: options.length })}\n\n`
+            )
           );
         } catch (err) {
           const msg =
             err instanceof Error ? err.message : "Unknown error";
           controller.enqueue(
             encoder.encode(
-              `data: ${JSON.stringify({ type: "error", error: msg })}\n\n`,
-            ),
+              `data: ${JSON.stringify({ type: "error", error: msg })}\n\n`
+            )
           );
         }
 

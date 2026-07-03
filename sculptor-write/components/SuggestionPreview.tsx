@@ -2,7 +2,7 @@
 
 import { useUIStore } from "@/lib/store";
 import type { Intent, SuggestionOption } from "@/types/editor";
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 
 interface SuggestionPreviewProps {
   editor: any;
@@ -20,7 +20,12 @@ export default function SuggestionPreview({
   const clearSuggestions = useUIStore((s) => s.clearSuggestions);
   const setWritingState = useUIStore((s) => s.setWritingState);
 
-  if (suggestions.length === 0 && writingState !== "streaming" && writingState !== "loading") return null;
+  if (
+    suggestions.length === 0 &&
+    writingState !== "streaming" &&
+    writingState !== "loading"
+  )
+    return null;
 
   const handleInsert = useCallback(
     (option: SuggestionOption) => {
@@ -56,7 +61,7 @@ export default function SuggestionPreview({
       <div className="suggestion-panel">
         <div
           className="suggestion-card"
-          style={{ textAlign: "center", color: "var(--muted)", fontSize: 14 }}
+          style={{ textAlign: "center", color: "var(--text-secondary)", fontSize: 14 }}
         >
           Thinking...
         </div>
@@ -69,11 +74,8 @@ export default function SuggestionPreview({
       {suggestions.map((opt) => (
         <div key={opt.index} className="suggestion-card">
           <p className="suggestion-text">{opt.text}</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span className="style-badge">{opt.styleShift}</span>
-            <div className="suggestion-actions">
-              <button onClick={() => handleInsert(opt)}>✔ Insert</button>
-            </div>
+          <div className="suggestion-actions">
+            <button onClick={() => handleInsert(opt)}>Insert</button>
           </div>
         </div>
       ))}

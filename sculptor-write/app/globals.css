@@ -3,12 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --bg: #FAFAF8;
-  --text: #1A1A1A;
-  --muted: #6B6B6B;
-  --accent: #4A6CF7;
-  --ai-highlight: #F2F6FF;
-  --border: #E8E8E8;
+  --bg: #0d0d0d;
+  --surface: #141414;
+  --card: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #e0d8c8;
+  --text-secondary: #8a8578;
+  --accent: #c4a565;
+  --accent-dim: #3d3520;
+  --error: #d9534f;
   --radius: 8px;
   --font-serif: "Charter", "Georgia", "Times New Roman", serif;
 }
@@ -42,21 +45,29 @@ body {
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {
-  color: #ADB5BD;
+  color: var(--text-secondary);
   content: attr(data-placeholder);
   float: left;
   height: 0;
   pointer-events: none;
 }
 
+/* Selection highlight */
+.ProseMirror ::selection {
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+/* ── AI Bubble ──────────────────────────────────────────── */
+
 .ai-bubble {
-  background: rgba(255,255,255,0.85);
+  background: var(--card);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 4px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   display: flex;
   gap: 2px;
   animation: bubble-in 0.2s ease;
@@ -87,9 +98,11 @@ body {
 }
 
 .ai-bubble button:hover {
-  background: var(--ai-highlight);
+  background: var(--accent-dim);
   color: var(--accent);
 }
+
+/* ── Suggestion Panel ───────────────────────────────────── */
 
 .suggestion-panel {
   position: fixed;
@@ -105,11 +118,11 @@ body {
 }
 
 .suggestion-card {
-  background: white;
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 16px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   animation: slide-up 0.3s ease;
 }
 
@@ -132,41 +145,31 @@ body {
   margin: 0 0 12px;
 }
 
-.style-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  background: var(--ai-highlight);
-  color: var(--accent);
-  margin-bottom: 10px;
-}
-
 .suggestion-actions {
   display: flex;
   gap: 6px;
 }
 
 .suggestion-actions button {
-  padding: 6px 12px;
+  padding: 6px 14px;
   border-radius: 6px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 500;
   border: 1px solid var(--border);
-  background: white;
+  background: var(--surface);
   color: var(--text);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .suggestion-actions button:hover {
-  background: var(--ai-highlight);
+  background: var(--accent-dim);
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ── Status Dot ─────────────────────────────────────────── */
 
 .status-dot {
   width: 8px;
@@ -176,130 +179,26 @@ body {
   transition: background 0.3s ease;
 }
 
-.status-dot.idle { background: #ADB5BD; }
-.status-dot.thinking { background: var(--accent); animation: pulse 1s infinite; }
-.status-dot.streaming { background: #F59E0B; animation: pulse 1.2s infinite; }
+.status-dot.idle {
+  background: var(--text-secondary);
+}
+
+.status-dot.thinking {
+  background: var(--accent);
+  animation: pulse 1s infinite;
+}
+
+.status-dot.streaming {
+  background: #f59e0b;
+  animation: pulse 1.2s infinite;
+}
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-/* Style panel */
-.style-panel {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 8px;
-  width: 320px;
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 12px 48px rgba(0,0,0,0.12);
-  padding: 20px;
-  z-index: 200;
-}
-
-.style-panel label {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--muted);
-  display: block;
-  margin-bottom: 4px;
-}
-
-.style-panel input[type="range"] {
-  width: 100%;
-  margin: 4px 0 12px;
-  -webkit-appearance: none;
-  appearance: none;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--border);
-  outline: none;
-}
-
-.style-panel input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--accent);
-  cursor: pointer;
-  border: 2px solid white;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
-}
-
-.range-labels {
-  display: flex;
-  justify-content: space-between;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: -8px;
-  margin-bottom: 12px;
-}
-
-.imagery-input {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.imagery-input input {
-  flex: 1;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 13px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  outline: none;
-}
-
-.imagery-input input:focus {
-  border-color: var(--accent);
-}
-
-.imagery-input button {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: white;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.imagery-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.imagery-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  background: var(--ai-highlight);
-  border-radius: 4px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 12px;
-  color: var(--accent);
-}
-
-.imagery-tag button {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 0;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.imagery-tag button:hover {
-  color: #EF4444;
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }

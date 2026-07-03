@@ -1,9 +1,13 @@
 import { create } from "zustand";
-import type {
-  WritingState,
-  StyleConfig,
-  SuggestionOption,
-} from "@/types/editor";
+import type { WritingState, SuggestionOption } from "@/types/editor";
+
+export interface Profile {
+  tone: string;
+  avg_sentence_length: number;
+  common_imagery: string[];
+  formality: string;
+  keywords: string[];
+}
 
 export const useUIStore = create<{
   writingState: WritingState;
@@ -18,15 +22,8 @@ export const useUIStore = create<{
   addSuggestion: (opt: SuggestionOption) => void;
   clearSuggestions: () => void;
 
-  stylePanelOpen: boolean;
-  setStylePanelOpen: (v: boolean) => void;
-
-  style: StyleConfig;
-  updateStyle: (partial: Partial<StyleConfig>) => void;
-  updateIdentity: (partial: Partial<StyleConfig["identity"]>) => void;
-  updateRhythm: (partial: Partial<StyleConfig["rhythm"]>) => void;
-  addImagery: (tag: string) => void;
-  removeImagery: (tag: string) => void;
+  styleProfile: Profile | null;
+  setStyleProfile: (p: Profile | null) => void;
 }>((set) => ({
   writingState: "idle",
   setWritingState: (s) => set({ writingState: s }),
@@ -41,42 +38,6 @@ export const useUIStore = create<{
     set((s) => ({ suggestions: [...s.suggestions, opt] })),
   clearSuggestions: () => set({ suggestions: [] }),
 
-  stylePanelOpen: false,
-  setStylePanelOpen: (v) => set({ stylePanelOpen: v }),
-
-  style: {
-    identity: { tone: 50, density: 50 },
-    rhythm: { sentenceLength: 50, punctuation: 50 },
-    imagery: [],
-  },
-  updateStyle: (partial) =>
-    set((s) => ({ style: { ...s.style, ...partial } })),
-  updateIdentity: (partial) =>
-    set((s) => ({
-      style: {
-        ...s.style,
-        identity: { ...s.style.identity, ...partial },
-      },
-    })),
-  updateRhythm: (partial) =>
-    set((s) => ({
-      style: {
-        ...s.style,
-        rhythm: { ...s.style.rhythm, ...partial },
-      },
-    })),
-  addImagery: (tag) =>
-    set((s) => {
-      if (s.style.imagery.includes(tag)) return s;
-      return {
-        style: { ...s.style, imagery: [...s.style.imagery, tag] },
-      };
-    }),
-  removeImagery: (tag) =>
-    set((s) => ({
-      style: {
-        ...s.style,
-        imagery: s.style.imagery.filter((t) => t !== tag),
-      },
-    })),
+  styleProfile: null,
+  setStyleProfile: (p) => set({ styleProfile: p }),
 }));

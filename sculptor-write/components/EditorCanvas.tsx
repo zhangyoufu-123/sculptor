@@ -79,7 +79,17 @@ export default function EditorCanvas({ onEditorReady }: EditorCanvasProps) {
   }, [editor, handleSelectionChange]);
 
   return (
-    <div className="editor-canvas" ref={editorRef}>
+    <div
+      className="editor-canvas"
+      ref={editorRef}
+      style={{
+        maxWidth: 720,
+        margin: "0 auto",
+        padding: "48px 24px",
+        minHeight: "calc(100vh - 56px)",
+        background: "transparent",
+      }}
+    >
       <EditorContent editor={editor} />
     </div>
   );

@@ -38,3 +38,28 @@ export type WritingState =
   | "loading"
   | "streaming"
   | "inserting";
+
+export interface Document {
+  id: string;
+  user_id: string;
+  title: string;
+  content: Record<string, unknown> | null;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface DocumentListItem {
+  id: string;
+  title: string;
+  updated_at: string;
+}
+
+export type SaveStatus = "saved" | "saving" | "unsaved";
+
+export interface StyleProfileData {
+  tone: string;
+  avg_sentence_length: number;
+  common_imagery: string[];
+  formality: number;
+  keywords: string[];
+}
