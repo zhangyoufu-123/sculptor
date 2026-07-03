@@ -1,0 +1,17 @@
+{
+  "rewrite": [
+    {"text": "The morning light filtered softly through the canopy, casting long, dappled shadows across the garden path.", "style_shift": "more_poetic"},
+    {"text": "Sunlight streamed through the trees, creating shifting patterns of light and shadow on the path ahead.", "style_shift": "more_direct"},
+    {"text": "As the morning sun climbed higher, its rays pierced the dense canopy above, scattering fragments of golden light across the winding garden path, where shadows danced and shifted with each passing breeze.", "style_shift": "more_detailed"}
+  ],
+  "continue": [
+    {"text": "The air carried the scent of damp earth and blooming jasmine, a quiet reminder that spring had finally arrived.", "style_shift": "more_sensory"},
+    {"text": "Birds called out from the treetops, their songs echoing through the still morning air.", "style_shift": "more_direct"},
+    {"text": "Beyond the garden gate, the mist was lifting from the meadow, revealing a landscape still wet with dew and drenched in the pale gold of early morning.", "style_shift": "more_descriptive"}
+  ],
+  "explain": [
+    {"text": "In simple terms, the morning sunlight was coming through the trees and making shadows on the ground.", "style_shift": "simpler"},
+    {"text": "What this describes is the visual effect of sunrise filtering through leaves, casting varied shadows across a garden walkway.", "style_shift": "more_analytical"},
+    {"text": "The author is painting a picture of early morning: light breaking through foliage, creating a play of light and dark on the path below.", "style_shift": "more_reflective"}
+  ]
+}

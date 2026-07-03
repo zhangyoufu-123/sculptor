@@ -1,0 +1,305 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #FAFAF8;
+  --text: #1A1A1A;
+  --muted: #6B6B6B;
+  --accent: #4A6CF7;
+  --ai-highlight: #F2F6FF;
+  --border: #E8E8E8;
+  --radius: 8px;
+  --font-serif: "Charter", "Georgia", "Times New Roman", serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-serif);
+  line-height: 1.8;
+  font-size: 16.5px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.editor-canvas {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  min-height: calc(100vh - 56px);
+}
+
+.ProseMirror {
+  outline: none;
+  min-height: 60vh;
+}
+
+.ProseMirror p {
+  margin: 0.5em 0;
+  line-height: 1.8;
+  font-size: 16.5px;
+  color: var(--text);
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: #ADB5BD;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.ai-bubble {
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  display: flex;
+  gap: 2px;
+  animation: bubble-in 0.2s ease;
+  z-index: 100;
+}
+
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ai-bubble button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ai-bubble button:hover {
+  background: var(--ai-highlight);
+  color: var(--accent);
+}
+
+.suggestion-panel {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 640px;
+  max-width: calc(100vw - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 50;
+}
+
+.suggestion-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  animation: slide-up 0.3s ease;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.suggestion-text {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text);
+  margin: 0 0 12px;
+}
+
+.style-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--ai-highlight);
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+.suggestion-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.suggestion-actions button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.suggestion-actions button:hover {
+  background: var(--ai-highlight);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  transition: background 0.3s ease;
+}
+
+.status-dot.idle { background: #ADB5BD; }
+.status-dot.thinking { background: var(--accent); animation: pulse 1s infinite; }
+.status-dot.streaming { background: #F59E0B; animation: pulse 1.2s infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Style panel */
+.style-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  width: 320px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.12);
+  padding: 20px;
+  z-index: 200;
+}
+
+.style-panel label {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.style-panel input[type="range"] {
+  width: 100%;
+  margin: 4px 0 12px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  outline: none;
+}
+
+.style-panel input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+
+.range-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
+
+.imagery-input {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.imagery-input input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  outline: none;
+}
+
+.imagery-input input:focus {
+  border-color: var(--accent);
+}
+
+.imagery-input button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: white;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.imagery-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.imagery-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--ai-highlight);
+  border-radius: 4px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.imagery-tag button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.imagery-tag button:hover {
+  color: #EF4444;
+}

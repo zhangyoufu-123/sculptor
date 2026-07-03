@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Sculptor — Adversarial Reading Engine",
-  description:
-    "Analyze articles with adversarial AI to find hidden assumptions and decision risks.",
+  title: "Sculptor Write",
+  description: "Word-like AI writing environment",
 };
 
 export default function RootLayout({
@@ -14,7 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body>{children}</body>
     </html>
   );
 }
