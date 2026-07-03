@@ -2,22 +2,26 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { DocumentListItem } from "@/types/editor";
+import FileUpload from "@/components/FileUpload";
 
 interface DocumentListProps {
   onOpenDocument: (doc: DocumentListItem) => void;
   currentDocId: string | null;
   onToggle?: (collapsed: boolean) => void;
+  onImport: (text: string, filename: string) => void;
 }
 
 export default function DocumentList({
   onOpenDocument,
   currentDocId,
   onToggle,
+  onImport,
 }: DocumentListProps) {
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [fileUploadOpen, setFileUploadOpen] = useState(false);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -125,6 +129,36 @@ export default function DocumentList({
       >
         {!collapsed && (
           <div style={{ padding: "12px" }}>
+            {/* Import Button */}
+            <button
+              onClick={() => setFileUploadOpen(true)}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                marginBottom: 8,
+                borderRadius: 8,
+                border: "1px solid #2a2a2a",
+                background: "transparent",
+                color: "#8a8578",
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: "pointer",
+                fontFamily:
+                  '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#c4a565";
+                e.currentTarget.style.color = "#c4a565";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#2a2a2a";
+                e.currentTarget.style.color = "#8a8578";
+              }}
+            >
+              📥 导入
+            </button>
+
             {/* New Document Button */}
             <button
               onClick={handleNewDocument}
@@ -274,6 +308,13 @@ export default function DocumentList({
           </div>
         )}
       </aside>
+
+      {/* File Upload Modal */}
+      <FileUpload
+        isOpen={fileUploadOpen}
+        onClose={() => setFileUploadOpen(false)}
+        onImport={onImport}
+      />
     </>
   );
 }

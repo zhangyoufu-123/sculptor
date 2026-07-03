@@ -72,3 +72,31 @@ export interface StyleProfileData {
   formality: number;
   keywords: string[];
 }
+
+export interface MasterQuote {
+  text: string;
+  author: string;
+  source: string;
+  keywords: string[];
+  tone: string;
+}
+
+export interface SearchResult {
+  title: string;
+  snippet: string;
+  source: string;
+  url: string;
+}
+
+export interface ArchitectureNode {
+  id: string;
+  label: string;
+  children: ArchitectureNode[];
+  position: number;
+}
+
+export interface ImageryWord {
+  word: string;
+  count: number;
+  positions: number[];
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TopBar from "@/components/TopBar";
 import EditorCanvas from "@/components/EditorCanvas";
 import AIBubble from "@/components/AIBubble";
@@ -9,6 +9,7 @@ import DocumentList from "@/components/DocumentList";
 import StyleSetup from "@/components/StyleSetup";
 import CommandPalette from "@/components/CommandPalette";
 import EchoWall from "@/components/EchoWall";
+import ArchitecturePanel from "@/components/ArchitecturePanel";
 import { useUIStore } from "@/lib/store";
 import type {
   Intent,
@@ -18,6 +19,8 @@ import type {
   Document,
   SaveStatus,
   StyleProfileData,
+  MasterQuote,
+  SearchResult,
 } from "@/types/editor";
 import type { Editor } from "@tiptap/react";
 
@@ -44,11 +47,18 @@ export default function Home() {
   // ── Command palette ───────────────────────────────────────────
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
+  // ── Architecture panel state ───────────────────────────────────
+  const [wordGoal, setWordGoal] = useState(3000);
+  const [editorPlainText, setEditorPlainText] = useState("");
+
   // ── Echo Wall state ───────────────────────────────────────────
   const [echoWallAnalysis, setEchoWallAnalysis] = useState("");
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [echoWallInspiration, setEchoWallInspiration] = useState("");
   const [inspirationLoading, setInspirationLoading] = useState(false);
+  const [masterQuotes, setMasterQuotes] = useState<MasterQuote[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   // ── Write mode store ──────────────────────────────────────────
   const selectedText = useUIStore((s) => s.selectedText);
@@ -192,8 +202,9 @@ export default function Home() {
       triggerAutosave();
       lastKeypressTime.current = Date.now();
 
-      // Clear inspiration when user resumes typing
+      // Clear inspiration and master quotes when user resumes typing
       setEchoWallInspiration("");
+      setMasterQuotes([]);
     };
 
     editor.on("update", handleUpdate);
@@ -202,7 +213,18 @@ export default function Home() {
     };
   }, [currentDocId, triggerAutosave]);
 
-  // ── 15s Polling for analysis ──────────────────────────────────
+  // ── Architecture panel: node click → scroll editor ────────────
+  const handleArchitectureNodeClick = useCallback((position: number) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    // Navigate editor to the paragraph position
+    const docSize = editor.state.doc.content.size;
+    const targetPos = Math.min(position + 1, docSize);
+    editor.commands.setTextSelection(targetPos);
+    editor.commands.scrollIntoView();
+  }, []);
+
+  // ── Echo Wall: 15s polling cycle ──────────────────────────────
   useEffect(() => {
     const interval = setInterval(async () => {
       const editor = editorRef.current;
@@ -236,6 +258,26 @@ export default function Home() {
         // Silent fail — analysis is non-critical
       } finally {
         setAnalysisLoading(false);
+      }
+
+      // Also trigger inspiration fetch when text > 200 chars
+      if (fullText.length > 200) {
+        try {
+          const inspRes = await fetch("/api/write/inspiration", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ recentText: fullText.slice(-1000) }),
+          });
+
+          if (inspRes.ok) {
+            const inspData = await inspRes.json();
+            if (inspData.quotes) {
+              setMasterQuotes(inspData.quotes);
+            }
+          }
+        } catch {
+          // Silent fail
+        }
       }
     }, ANALYSIS_POLL_MS);
 
@@ -476,6 +518,43 @@ export default function Home() {
     [triggerAutosave]
   );
 
+  // ── EchoWall: web search ──────────────────────────────────────
+  const handleSearch = useCallback(
+    async (query: string) => {
+      setSearchLoading(true);
+      try {
+        const res = await fetch("/api/write/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.results) {
+            setSearchResults(data.results);
+          }
+        }
+      } catch {
+        // Silent fail
+      } finally {
+        setSearchLoading(false);
+      }
+    },
+    []
+  );
+
+  // ── Document import ───────────────────────────────────────────
+  const handleImport = useCallback(
+    (text: string, _filename: string) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      editor.commands.setContent(text);
+      triggerAutosave();
+    },
+    [triggerAutosave]
+  );
+
   // ── Blank line double-click ───────────────────────────────────
   const handleBlankDoubleClick = useCallback(() => {
     // Open the command palette for custom prompt mode
@@ -542,15 +621,66 @@ export default function Home() {
         onStyleClick={() => setStyleOpen(true)}
       />
       <div style={{ display: "flex", flex: 1 }}>
-        <DocumentList
-          onOpenDocument={handleOpenDocument}
-          currentDocId={currentDocId}
-          onToggle={setSidebarCollapsed}
-        />
+        {sidebarCollapsed ? (
+          <div
+            style={{
+              width: 48,
+              flexShrink: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              paddingTop: 12,
+              background: "#0d0d0d",
+              borderRight: "1px solid #1a1a1a",
+            }}
+          >
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#c4a565",
+                fontSize: 18,
+                cursor: "pointer",
+                padding: 4,
+              }}
+            >
+              →
+            </button>
+          </div>
+        ) : (
+          <div
+            style={{
+              width: 280,
+              flexShrink: 0,
+              background: "#0d0d0d",
+              borderRight: "1px solid #1a1a1a",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            <ArchitecturePanel
+              editorContent={editorPlainText}
+              onNodeClick={handleArchitectureNodeClick}
+              imageryWords={[]}
+              wordGoal={wordGoal}
+              onWordGoalChange={setWordGoal}
+            />
+            <div style={{ flex: 1, overflow: "hidden" }}>
+              <DocumentList
+                onOpenDocument={handleOpenDocument}
+                currentDocId={currentDocId}
+                onToggle={setSidebarCollapsed}
+                onImport={handleImport}
+              />
+            </div>
+          </div>
+        )}
         <main
           className="flex-1 relative"
           style={{
-            marginLeft: sidebarCollapsed ? 0 : 240,
+            marginLeft: sidebarCollapsed ? 48 : 280,
             marginRight: 320,
           }}
         >
@@ -570,8 +700,12 @@ export default function Home() {
           analysisLoading={analysisLoading}
           inspiration={echoWallInspiration}
           inspirationLoading={inspirationLoading}
+          masterQuotes={masterQuotes}
+          searchResults={searchResults}
+          searchLoading={searchLoading}
           onAdopt={handleAdoptInspiration}
           onStyleSetupClick={() => setStyleOpen(true)}
+          onSearch={handleSearch}
         />
       </div>
       <StyleSetup
