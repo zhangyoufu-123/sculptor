@@ -1,5 +1,6 @@
 // lib/ai/context-manager.ts
 import { getSupabase } from "@/lib/supabase";
+import { readRecentMemories } from "./context-memory";
 import type { ContextPackage, FeedbackLog, StyleProfileData } from "@/types/editor";
 
 interface CollectInput {
@@ -62,5 +63,9 @@ export async function collectContext(input: CollectInput): Promise<ContextPackag
     styleProfile,
     documentSkeleton: null,
     recentFeedback,
+    recentMemories: await readRecentMemories(
+      input.userId,
+      input.documentId
+    ),
   };
 }

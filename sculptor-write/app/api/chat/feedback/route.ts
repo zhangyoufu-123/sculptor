@@ -2,6 +2,7 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { getSupabase } from "@/lib/supabase";
+import { writeMemory } from "@/lib/ai/context-memory";
 
 export const runtime = "nodejs";
 
@@ -35,6 +36,37 @@ export async function POST(request: NextRequest) {
         { error: "Failed to record feedback" },
         { status: 500 }
       );
+    }
+
+    // Write to context_memory for significant patterns
+    if (
+      action === "reject" &&
+      suggestionText &&
+      suggestionText.length > 20
+    ) {
+      await writeMemory(session.user.id, documentId || null, {
+        memoryType: "rejected_pattern",
+        memoryData: {
+          pattern: suggestionText.slice(0, 200),
+          context: (contextPreview || "").slice(0, 200),
+        },
+        importance: 0.7,
+      });
+    }
+
+    if (
+      action === "accept" &&
+      suggestionText &&
+      suggestionText.length > 20
+    ) {
+      await writeMemory(session.user.id, documentId || null, {
+        memoryType: "preferred_structure",
+        memoryData: {
+          pattern: suggestionText.slice(0, 200),
+          context: (contextPreview || "").slice(0, 200),
+        },
+        importance: 0.4,
+      });
     }
 
     return Response.json({ success: true });
