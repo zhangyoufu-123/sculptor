@@ -4,59 +4,52 @@ import { createClient } from "@/lib/deepseek";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const SYSTEM_PROMPT = `You are an architecture assistant helping build article outlines. You receive the user's message, conversation history, and current architecture. Your job is to understand the user's intent and respond with an updated architecture.
+const SYSTEM_PROMPT = `你是一位文章架构助手，帮助用户搭建文章骨架。用中文回复。
 
-Response types:
-1. If instruction is clear: update architecture and confirm. Output:
-   {"type":"confirmation","message":"已修改...","nodes":[...updated...],"edges":[...updated...]}
+你的任务：理解用户的指令，修改当前架构。每次响应包含完整的最新nodes和edges。
 
-2. If instruction is vague: ask for clarification with options. Output:
-   {"type":"clarification","message":"你想修改哪个方面？","options":[{"label":"选项1","value":"opt1"},{"label":"选项2","value":"opt2"}]}
+响应类型：
+1. 指令清晰 → {"type":"confirmation","message":"确认信息","nodes":[...],"edges":[...]}
+2. 指令模糊 → {"type":"clarification","message":"反问","options":[{"label":"选项1","value":"opt1"}]}
+3. 主动建议 → {"type":"suggestion","message":"建议说明","nodes":[...],"edges":[...]}
 
-3. If you have a proactive suggestion: suggest with preview. Output:
-   {"type":"suggestion","message":"建议添加...","nodes":[...suggested...],"edges":[...suggested...]}
+特殊指令处理：
+- "展开"/"加子节点" → 在选中节点下添加子节点，先反问名称
+- "换一种结构" → 生成2套替代架构 {"type":"suggestion","message":"两套方案","nodes":[...alt1...],"edges":[...alt1...]}
+- "逻辑检查"/"审查" → 分析当前架构，在nodes上标记reviewStatus字段（red/yellow/green），返回确认消息
+- "删除XX" → 删除匹配节点及子节点
+- 模糊指令如"感觉不对" → 反问并提供2-3个猜测选项
 
-Special commands:
-- "展开这个节点" / "加子节点": add child to selected node. Ask what label.
-- "换一种结构": generate 2 alternative structure sets
-- "逻辑检查": review for gaps. Mark issue nodes with reviewStatus.
-- "删除这个": remove selected node and children
-- "重新来过": return empty nodes/edges
-
-Rules:
-- Always include the FULL updated nodes and edges arrays (not just deltas)
-- Keep node IDs stable unless adding new nodes
-- Use the existing architecture as base, modify minimally
-- If selectedNodeId is provided, use it as context
-- Output valid JSON only, no markdown
-
-Node types: thesis, argument, evidence, counterargument, transition, background, imagery, custom
-Edge types: supports, contradicts, precedes, elaborates, exemplifies, concludes`;
+关键规则：
+- 保留所有现有节点ID不变，仅修改需要改的部分
+- 新节点ID用 "n" + 递增数字
+- 节点type必须是: thesis/argument/evidence/counterargument/transition/background/imagery/custom
+- 连线relation必须是: supports/contradicts/precedes/elaborates/exemplifies/concludes
+- position坐标：x在100-700之间，y在50-500之间，层级递增
+- 每次响应都要有message字段（中文确认文字）
+- 输出纯JSON，不要markdown`;
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { message, conversationHistory, currentArchitecture, selectedNodeId } = body;
-
-    if (!message) {
-      return Response.json({ error: "Missing message" }, { status: 400 });
-    }
+    if (!message) return Response.json({ error: "Missing message" }, { status: 400 });
 
     const history = Array.isArray(conversationHistory) ? conversationHistory : [];
     const arch = currentArchitecture || { nodes: [], edges: [] };
 
-    const userPrompt = `User message: "${message}"
-Selected node: ${selectedNodeId || "none"}
-Current architecture (JSON): ${JSON.stringify(arch)}
-Conversation history: ${JSON.stringify(history.slice(-6))}
+    const userPrompt = `用户指令: "${message}"
+当前选中节点: ${selectedNodeId || "无"}
+当前架构: ${JSON.stringify(arch)}
+对话历史(最近6条): ${JSON.stringify(history.slice(-6))}
 
-Respond with the appropriate type (confirmation, clarification, or suggestion) and include FULL updated architecture if making changes.`;
+请分析用户意图，决定响应类型并输出完整JSON。`;
 
     const client = createClient();
     const response = await client.chat.completions.create({
       model: "deepseek-chat",
       temperature: 0.5,
-      max_tokens: 2000,
+      max_tokens: 3000,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
@@ -69,31 +62,19 @@ Respond with the appropriate type (confirmation, clarification, or suggestion) a
 
     const parsed = JSON.parse(content);
 
-    // Stream response
     const stream = new ReadableStream({
-      async start(controller) {
+      start(controller) {
         const encoder = new TextEncoder();
-
-        // Send the AI response
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(parsed)}
-
-`));
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}
-
-`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(parsed)}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
         controller.close();
       },
     });
 
     return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
+      headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return Response.json({ error: msg }, { status: 500 });
+    return Response.json({ error: (err as Error).message }, { status: 500 });
   }
 }
