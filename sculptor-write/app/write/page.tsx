@@ -136,7 +136,9 @@ export default function WritePage() {
               <div style={{ flex: 1, overflow: "auto", padding: "8px" }}>
                 {skeletonNodes.length === 0 ? (
                   <div style={{ color: "var(--text-tertiary)", fontSize: 12, textAlign: "center", padding: 24 }}>
-                    无架构 — <a href="/architect" style={{ color: "var(--gold)" }}>创建架构</a>
+                    <p style={{ marginBottom: 12 }}>无架构</p>
+                    <a href="/architect" className="btn-primary" style={{ display: "inline-block", fontSize: 12, padding: "6px 14px", minHeight: 32, textDecoration: "none", color: "var(--text-inverse)" }}>创建架构</a>
+                    <p style={{ marginTop: 12, fontSize: 11 }}>AI 将基于已写内容自动生成建议架构</p>
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
