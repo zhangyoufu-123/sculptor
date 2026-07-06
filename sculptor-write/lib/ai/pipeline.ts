@@ -3,6 +3,7 @@ import { collectContext } from "./context-manager";
 import { analyzeIntent } from "./intent-analyzer";
 import { readStyle } from "./style-reader";
 import { buildFinalPrompt } from "./instruction-rewriter";
+import { deepRetrieve } from "./deep-retrieval";
 import { createClient } from "@/lib/deepseek";
 import type { StreamEvent, RelevantMaterial } from "@/types/editor";
 
@@ -32,8 +33,8 @@ export async function* runPipeline(
     // Step 3: Read style
     const style = readStyle(ctx, intent);
 
-    // Step 4: Deep retrieval (placeholder — v2.2 will add pgvector)
-    const materials: RelevantMaterial[] = [];
+    // Step 4: Deep retrieval — text-based keyword matching
+    const materials = deepRetrieve(ctx, intent, style);
 
     // Step 5: Build final prompt
     const { systemPrompt, userMessage } = buildFinalPrompt(

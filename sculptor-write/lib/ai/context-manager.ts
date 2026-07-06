@@ -45,6 +45,26 @@ export async function collectContext(input: CollectInput): Promise<ContextPackag
     };
   }
 
+  // Fallback: if no style_profiles, try style_samples
+  if (!styleProfile) {
+    const { data: samplesData } = await supabase
+      .from("style_samples")
+      .select("samples, name")
+      .eq("user_id", input.userId)
+      .eq("is_active", true)
+      .single();
+
+    if (samplesData) {
+      styleProfile = {
+        tone: "balanced",
+        avg_sentence_length: 15,
+        common_imagery: [],
+        formality: 5,
+        keywords: [samplesData.name || "默认风格"],
+      };
+    }
+  }
+
   const recentFeedback: FeedbackLog[] = (feedbackResult.data || []).map((f) => ({
     id: f.id,
     documentId: f.document_id || "",

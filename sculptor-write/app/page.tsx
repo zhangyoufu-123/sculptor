@@ -253,10 +253,35 @@ export default function Home() {
           }),
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          if (data.analysis) {
-            setEchoWallAnalysis(data.analysis);
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          let analysisText = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              try {
+                const event = JSON.parse(line.slice(6));
+                if (event.type === "option" && event.text && !analysisText) {
+                  analysisText = event.text;
+                }
+              } catch {
+                // skip malformed
+              }
+            }
+          }
+
+          if (analysisText) {
+            setEchoWallAnalysis(analysisText);
           }
         }
       } catch {

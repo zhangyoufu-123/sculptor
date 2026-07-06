@@ -12,7 +12,6 @@
     "@auth/supabase-adapter": "^1.11.2",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.49.4",
-    "@tiptap/extension-history": "^3.27.1",
     "@tiptap/extension-placeholder": "^3.27.1",
     "@tiptap/pm": "^3.27.1",
     "@tiptap/react": "^3.27.1",
