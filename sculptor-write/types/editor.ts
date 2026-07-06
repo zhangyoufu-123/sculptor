@@ -100,3 +100,76 @@ export interface ImageryWord {
   count: number;
   positions: number[];
 }
+
+// ═══════════════════════════════════════════════════════════════
+// v2.1 Pipeline types
+// ═══════════════════════════════════════════════════════════════
+
+export interface ContextPackage {
+  userId: string;
+  documentId: string;
+  currentText: string;
+  surroundingContext: string;
+  userInstruction: string;
+  styleProfile: StyleProfileData | null;
+  documentSkeleton: unknown | null;
+  recentFeedback: FeedbackLog[];
+  recentMemories?: MemoryEntry[];
+}
+
+export interface IntentAnalysis {
+  genre: "fiction" | "essay" | "prose" | "report" | "unknown";
+  function: "continue" | "rewrite" | "describe" | "argue" | "explain";
+  emotion: "calm" | "tense" | "melancholy" | "passionate" | "neutral";
+  pace: "slow" | "medium" | "fast";
+  topicWords: string[];
+}
+
+export interface StyleConstraints {
+  avgSentenceLength: number;
+  activeImagery: string[];
+  toneProfile: string;
+  formality: string;
+  observations: string[];
+  retrievalKeywords: string[];
+}
+
+export interface RelevantMaterial {
+  source: "user_corpus" | "corpus";
+  title: string;
+  snippet: string;
+  relevance: number;
+}
+
+export interface FeedbackLog {
+  id: string;
+  documentId: string;
+  suggestionText: string;
+  action: "accept" | "reject" | "modify";
+  contextPreview: string;
+  createdAt: string;
+}
+
+export interface MemoryEntry {
+  memoryType: string;
+  memoryData: Record<string, unknown>;
+  importance: number;
+}
+
+export interface GhostTextState {
+  text: string;
+  visible: boolean;
+  position: { from: number; to: number };
+}
+
+export type PipelineStage =
+  | "idle"
+  | "collecting_context"
+  | "analyzing_intent"
+  | "reading_style"
+  | "retrieving"
+  | "rewriting_instruction"
+  | "generating"
+  | "recording_feedback"
+  | "done"
+  | "error";
