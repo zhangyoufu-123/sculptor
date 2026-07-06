@@ -2,6 +2,7 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { createClient } from "@/lib/deepseek";
+import { runPipeline } from "@/lib/ai/pipeline";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -87,7 +88,52 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Future: other intents will be handled by pipeline (Phase 2)
+    // Pipeline-based intent handling (all non-ghost intents)
+    if (intent && intent !== "ghost_continue") {
+      const stream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          const userId = session?.user?.id || "anonymous";
+
+          try {
+            for await (const event of runPipeline({
+              userId,
+              documentId: body.documentId || null,
+              currentText: body.text || body.selectedText || "",
+              explicitIntent: intent,
+              userInstruction:
+                body.customText || body.userInstruction || "",
+            })) {
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+              );
+
+              // Simulate streaming delay between options
+              if (event.type === "option") {
+                await new Promise((r) => setTimeout(r, 300));
+              }
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : "Unknown error";
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "error", error: msg })}\n\n`
+              )
+            );
+          }
+          controller.close();
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
     return Response.json({ error: "Unknown intent" }, { status: 400 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";

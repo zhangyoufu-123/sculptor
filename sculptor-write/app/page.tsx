@@ -415,14 +415,15 @@ export default function Home() {
 
       try {
         const body: Record<string, unknown> = {
-          selectedText,
+          text: selectedText,
           intent,
+          documentId: currentDocId,
         };
         if (intent === "custom" && customText) {
           body.customText = customText;
         }
 
-        const response = await fetch("/api/write/suggest", {
+        const response = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
