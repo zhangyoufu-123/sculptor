@@ -1,0 +1,82 @@
+{
+  "name": "叙事文",
+  "type": "narrative",
+  "defaultNodes": [
+    {
+      "id": "n1",
+      "label": "故事核心",
+      "type": "thesis",
+      "position": {
+        "x": 400,
+        "y": 30
+      },
+      "children": [
+        "n2",
+        "n3",
+        "n4"
+      ]
+    },
+    {
+      "id": "n2",
+      "label": "开端",
+      "type": "background",
+      "position": {
+        "x": 150,
+        "y": 130
+      },
+      "children": []
+    },
+    {
+      "id": "n3",
+      "label": "发展/冲突",
+      "type": "argument",
+      "position": {
+        "x": 400,
+        "y": 130
+      },
+      "children": [
+        "n5"
+      ]
+    },
+    {
+      "id": "n4",
+      "label": "结局",
+      "type": "argument",
+      "position": {
+        "x": 650,
+        "y": 130
+      },
+      "children": []
+    },
+    {
+      "id": "n5",
+      "label": "关键意象",
+      "type": "imagery",
+      "position": {
+        "x": 400,
+        "y": 230
+      },
+      "children": []
+    }
+  ],
+  "defaultEdges": [
+    {
+      "id": "e1",
+      "from": "n2",
+      "to": "n3",
+      "relation": "precedes"
+    },
+    {
+      "id": "e2",
+      "from": "n3",
+      "to": "n4",
+      "relation": "precedes"
+    },
+    {
+      "id": "e3",
+      "from": "n1",
+      "to": "n5",
+      "relation": "elaborates"
+    }
+  ]
+}

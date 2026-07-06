@@ -1,0 +1,82 @@
+{
+  "name": "散文",
+  "type": "essay",
+  "defaultNodes": [
+    {
+      "id": "n1",
+      "label": "文章主题",
+      "type": "thesis",
+      "position": {
+        "x": 400,
+        "y": 30
+      },
+      "children": [
+        "n2",
+        "n3",
+        "n4"
+      ]
+    },
+    {
+      "id": "n2",
+      "label": "引入",
+      "type": "background",
+      "position": {
+        "x": 200,
+        "y": 130
+      },
+      "children": []
+    },
+    {
+      "id": "n3",
+      "label": "主体展开",
+      "type": "argument",
+      "position": {
+        "x": 400,
+        "y": 130
+      },
+      "children": [
+        "n5"
+      ]
+    },
+    {
+      "id": "n4",
+      "label": "升华/收尾",
+      "type": "argument",
+      "position": {
+        "x": 600,
+        "y": 130
+      },
+      "children": []
+    },
+    {
+      "id": "n5",
+      "label": "核心意象",
+      "type": "imagery",
+      "position": {
+        "x": 400,
+        "y": 230
+      },
+      "children": []
+    }
+  ],
+  "defaultEdges": [
+    {
+      "id": "e1",
+      "from": "n2",
+      "to": "n3",
+      "relation": "precedes"
+    },
+    {
+      "id": "e2",
+      "from": "n3",
+      "to": "n4",
+      "relation": "precedes"
+    },
+    {
+      "id": "e3",
+      "from": "n1",
+      "to": "n5",
+      "relation": "elaborates"
+    }
+  ]
+}

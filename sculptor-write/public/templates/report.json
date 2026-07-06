@@ -1,0 +1,105 @@
+{
+  "name": "报告",
+  "type": "report",
+  "defaultNodes": [
+    {
+      "id": "n1",
+      "label": "报告摘要",
+      "type": "thesis",
+      "position": {
+        "x": 400,
+        "y": 30
+      },
+      "children": [
+        "n2",
+        "n3",
+        "n4",
+        "n5"
+      ]
+    },
+    {
+      "id": "n2",
+      "label": "背景",
+      "type": "background",
+      "position": {
+        "x": 100,
+        "y": 130
+      },
+      "children": []
+    },
+    {
+      "id": "n3",
+      "label": "方法",
+      "type": "argument",
+      "position": {
+        "x": 300,
+        "y": 130
+      },
+      "children": []
+    },
+    {
+      "id": "n4",
+      "label": "发现",
+      "type": "evidence",
+      "position": {
+        "x": 500,
+        "y": 130
+      },
+      "children": [
+        "n6"
+      ]
+    },
+    {
+      "id": "n5",
+      "label": "结论",
+      "type": "argument",
+      "position": {
+        "x": 700,
+        "y": 130
+      },
+      "children": []
+    },
+    {
+      "id": "n6",
+      "label": "数据支撑",
+      "type": "evidence",
+      "position": {
+        "x": 500,
+        "y": 230
+      },
+      "children": []
+    }
+  ],
+  "defaultEdges": [
+    {
+      "id": "e1",
+      "from": "n1",
+      "to": "n2",
+      "relation": "precedes"
+    },
+    {
+      "id": "e2",
+      "from": "n2",
+      "to": "n3",
+      "relation": "precedes"
+    },
+    {
+      "id": "e3",
+      "from": "n3",
+      "to": "n4",
+      "relation": "precedes"
+    },
+    {
+      "id": "e4",
+      "from": "n4",
+      "to": "n5",
+      "relation": "precedes"
+    },
+    {
+      "id": "e5",
+      "from": "n4",
+      "to": "n6",
+      "relation": "exemplifies"
+    }
+  ]
+}

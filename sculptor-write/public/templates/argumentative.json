@@ -1,0 +1,124 @@
+{
+  "name": "议论文",
+  "type": "argumentative",
+  "defaultNodes": [
+    {
+      "id": "n1",
+      "label": "核心论点",
+      "type": "thesis",
+      "position": {
+        "x": 400,
+        "y": 30
+      },
+      "children": [
+        "n2",
+        "n3",
+        "n4"
+      ]
+    },
+    {
+      "id": "n2",
+      "label": "分论点一",
+      "type": "argument",
+      "position": {
+        "x": 150,
+        "y": 130
+      },
+      "children": [
+        "n5"
+      ]
+    },
+    {
+      "id": "n3",
+      "label": "分论点二",
+      "type": "argument",
+      "position": {
+        "x": 400,
+        "y": 130
+      },
+      "children": [
+        "n6"
+      ]
+    },
+    {
+      "id": "n4",
+      "label": "分论点三",
+      "type": "argument",
+      "position": {
+        "x": 650,
+        "y": 130
+      },
+      "children": [
+        "n7"
+      ]
+    },
+    {
+      "id": "n5",
+      "label": "支持性论据",
+      "type": "evidence",
+      "position": {
+        "x": 150,
+        "y": 230
+      },
+      "children": []
+    },
+    {
+      "id": "n6",
+      "label": "数据案例",
+      "type": "evidence",
+      "position": {
+        "x": 400,
+        "y": 230
+      },
+      "children": []
+    },
+    {
+      "id": "n7",
+      "label": "反方观点",
+      "type": "counterargument",
+      "position": {
+        "x": 650,
+        "y": 230
+      },
+      "children": []
+    }
+  ],
+  "defaultEdges": [
+    {
+      "id": "e1",
+      "from": "n1",
+      "to": "n2",
+      "relation": "elaborates"
+    },
+    {
+      "id": "e2",
+      "from": "n1",
+      "to": "n3",
+      "relation": "elaborates"
+    },
+    {
+      "id": "e3",
+      "from": "n1",
+      "to": "n4",
+      "relation": "elaborates"
+    },
+    {
+      "id": "e4",
+      "from": "n2",
+      "to": "n5",
+      "relation": "exemplifies"
+    },
+    {
+      "id": "e5",
+      "from": "n3",
+      "to": "n6",
+      "relation": "exemplifies"
+    },
+    {
+      "id": "e6",
+      "from": "n4",
+      "to": "n7",
+      "relation": "contradicts"
+    }
+  ]
+}

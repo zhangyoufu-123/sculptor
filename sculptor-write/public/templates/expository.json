@@ -1,0 +1,88 @@
+{
+  "name": "说明文",
+  "type": "expository",
+  "defaultNodes": [
+    {
+      "id": "n1",
+      "label": "说明主题",
+      "type": "thesis",
+      "position": {
+        "x": 400,
+        "y": 30
+      },
+      "children": [
+        "n2",
+        "n3",
+        "n4"
+      ]
+    },
+    {
+      "id": "n2",
+      "label": "背景介绍",
+      "type": "background",
+      "position": {
+        "x": 150,
+        "y": 130
+      },
+      "children": []
+    },
+    {
+      "id": "n3",
+      "label": "核心机制",
+      "type": "argument",
+      "position": {
+        "x": 400,
+        "y": 130
+      },
+      "children": [
+        "n5"
+      ]
+    },
+    {
+      "id": "n4",
+      "label": "应用场景",
+      "type": "evidence",
+      "position": {
+        "x": 650,
+        "y": 130
+      },
+      "children": []
+    },
+    {
+      "id": "n5",
+      "label": "具体案例",
+      "type": "evidence",
+      "position": {
+        "x": 400,
+        "y": 230
+      },
+      "children": []
+    }
+  ],
+  "defaultEdges": [
+    {
+      "id": "e1",
+      "from": "n1",
+      "to": "n2",
+      "relation": "elaborates"
+    },
+    {
+      "id": "e2",
+      "from": "n1",
+      "to": "n3",
+      "relation": "elaborates"
+    },
+    {
+      "id": "e3",
+      "from": "n1",
+      "to": "n4",
+      "relation": "elaborates"
+    },
+    {
+      "id": "e4",
+      "from": "n3",
+      "to": "n5",
+      "relation": "exemplifies"
+    }
+  ]
+}
