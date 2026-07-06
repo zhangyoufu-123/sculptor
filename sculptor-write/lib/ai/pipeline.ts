@@ -5,7 +5,8 @@ import { readStyle } from "./style-reader";
 import { buildFinalPrompt } from "./instruction-rewriter";
 import { deepRetrieve } from "./deep-retrieval";
 import { createClient } from "@/lib/deepseek";
-import type { StreamEvent, RelevantMaterial } from "@/types/editor";
+import type { StreamEvent } from "@/types/editor";
+import { isMockMode, MOCK_PIPELINE_RESPONSE } from "./mock-responses";
 
 interface PipelineInput {
   userId: string;
@@ -34,7 +35,7 @@ export async function* runPipeline(
     // Step 3: Read style
     const style = readStyle(ctx, intent);
 
-    // Step 4: Deep retrieval — text-based keyword matching
+    // Step 4: Deep retrieval
     const materials = deepRetrieve(ctx, intent, style);
 
     // Step 5: Build final prompt
@@ -46,7 +47,23 @@ export async function* runPipeline(
       input.intensity || "normal"
     );
 
-    // Step 6: Call LLM
+    // Step 6: Call LLM (or use mock)
+    if (isMockMode()) {
+      const mock = MOCK_PIPELINE_RESPONSE(intent.function);
+      for (const opt of mock.options.map(
+        (o: { text: string; style_shift: string }, i: number) => ({
+          index: i,
+          text: o.text,
+          styleShift: o.style_shift,
+        })
+      )) {
+        yield { type: "option", ...opt };
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      yield { type: "done", total: mock.options.length };
+      return;
+    }
+
     const client = createClient();
     const response = await client.chat.completions.create({
       model: "deepseek-chat",

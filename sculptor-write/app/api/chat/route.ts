@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { createClient } from "@/lib/deepseek";
 import { runPipeline } from "@/lib/ai/pipeline";
+import { isMockMode, MOCK_GHOST_TEXTS } from "@/lib/ai/mock-responses";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -23,6 +24,23 @@ export async function POST(request: NextRequest) {
         async start(controller) {
           const encoder = new TextEncoder();
           try {
+            // Mock mode: return pre-written ghost text
+            if (isMockMode()) {
+              const mockText =
+                MOCK_GHOST_TEXTS[Math.floor(Math.random() * MOCK_GHOST_TEXTS.length)];
+              await new Promise((r) => setTimeout(r, 400));
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({ type: "ghost_text", text: mockText })}\n\n`
+                )
+              );
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`)
+              );
+              controller.close();
+              return;
+            }
+
             const client = createClient();
 
             const response = await client.chat.completions.create({
