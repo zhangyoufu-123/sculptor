@@ -10,6 +10,7 @@ import StyleSetup from "@/components/StyleSetup";
 import CommandPalette from "@/components/CommandPalette";
 import EchoWall from "@/components/EchoWall";
 import ArchitecturePanel from "@/components/ArchitecturePanel";
+import ModeSelector from "@/components/shared/ModeSelector";
 import { useGhostText } from "@/hooks/useGhostText";
 import { useUIStore } from "@/lib/store";
 import type {
@@ -24,6 +25,7 @@ import type {
   SearchResult,
 } from "@/types/editor";
 import type { Editor } from "@tiptap/react";
+import { useRouter } from "next/navigation";
 
 const WRITE_TIMEOUT_MS = 45_000;
 const AUTOSAVE_DELAY_MS = 2000;
@@ -32,10 +34,14 @@ const PAUSE_DETECT_MS = 8_000;
 const PAUSE_CHECK_MS = 1_000;
 
 export default function Home() {
+  const router = useRouter();
   const editorRef = useRef<Editor | null>(null);
   const [currentIntent, setCurrentIntent] = useState<Intent>("rewrite");
 
-  // ── Document state ────────────────────────────────────────────
+  // Mode selector
+  const [showModeSelector, setShowModeSelector] = useState(true);
+
+  // Document state
   const [currentDoc, setCurrentDoc] = useState<Document | null>(null);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
   const [documentTitle, setDocumentTitle] = useState("Untitled");
@@ -672,6 +678,19 @@ export default function Home() {
     [handleIntent]
   );
 
+  // ── Mode selector handlers ────────────────────────────────────
+  const handleSelectDirect = useCallback(() => {
+    setShowModeSelector(false);
+  }, []);
+
+  const handleSelectArchitect = useCallback(() => {
+    router.push("/architect");
+  }, [router]);
+
+  const handleSelectImport = useCallback(() => {
+    setShowModeSelector(false);
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col">
       <TopBar
@@ -781,6 +800,13 @@ export default function Home() {
         onClose={() => setCommandPaletteOpen(false)}
         onCommand={handleCommand}
         onCustomCommand={handleCustomCommand}
+      />
+      <ModeSelector
+        isOpen={showModeSelector}
+        onSelectDirect={handleSelectDirect}
+        onSelectArchitect={handleSelectArchitect}
+        onSelectImport={handleSelectImport}
+        onClose={() => setShowModeSelector(false)}
       />
     </div>
   );
