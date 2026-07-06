@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { Editor } from "@tiptap/react";
 import TopBar from "@/components/TopBar";
 import EditorCanvas from "@/components/EditorCanvas";
 import AIBubble from "@/components/AIBubble";
@@ -11,54 +13,44 @@ import CommandPalette from "@/components/CommandPalette";
 import EchoWall from "@/components/EchoWall";
 import ArchitecturePanel from "@/components/ArchitecturePanel";
 import ModeSelector from "@/components/shared/ModeSelector";
+import SocraticPanel from "@/components/panels/SocraticPanel";
 import { useGhostText } from "@/hooks/useGhostText";
 import { useUIStore } from "@/lib/store";
-import type {
-  Intent,
-  SuggestionOption,
-  StreamEvent,
-  DocumentListItem,
-  Document,
-  SaveStatus,
-  StyleProfileData,
-  MasterQuote,
-  SearchResult,
-} from "@/types/editor";
-import type { Editor } from "@tiptap/react";
-import { useRouter } from "next/navigation";
+import type { Intent, SuggestionOption, StreamEvent, DocumentListItem, Document, SaveStatus, StyleProfileData, MasterQuote, SearchResult } from "@/types/editor";
 
-const WRITE_TIMEOUT_MS = 45_000;
+const WRITE_TIMEOUT_MS = 45000;
 const AUTOSAVE_DELAY_MS = 2000;
-const ANALYSIS_POLL_MS = 15_000;
-const PAUSE_DETECT_MS = 8_000;
-const PAUSE_CHECK_MS = 1_000;
+const ANALYSIS_POLL_MS = 15000;
+const PAUSE_DETECT_MS = 8000;
+
+type PanelState = "open" | "collapsed" | "hidden";
 
 export default function Home() {
   const router = useRouter();
   const editorRef = useRef<Editor | null>(null);
-  const [currentIntent, setCurrentIntent] = useState<Intent>("rewrite");
 
-  // Mode selector
+  // ── Mode Selector ───────────────────────────────────────────
   const [showModeSelector, setShowModeSelector] = useState(true);
 
-  // Document state
+  // ── Panel states ────────────────────────────────────────────
+  const [leftPanel, setLeftPanel] = useState<PanelState>("open");
+  const [rightPanel, setRightPanel] = useState<PanelState>("open");
+  const [socraticOpen, setSocraticOpen] = useState(false);
+
+  // ── Document state ──────────────────────────────────────────
   const [currentDoc, setCurrentDoc] = useState<Document | null>(null);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
-  const [documentTitle, setDocumentTitle] = useState("Untitled");
+  const [documentTitle, setDocumentTitle] = useState("无标题");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [currentIntent, setCurrentIntent] = useState<Intent>("rewrite");
 
-  // ── Style profile modal ───────────────────────────────────────
+  // ── Style profile ───────────────────────────────────────────
   const [styleOpen, setStyleOpen] = useState(false);
 
-  // ── Command palette ───────────────────────────────────────────
+  // ── Command palette ─────────────────────────────────────────
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
-  // ── Architecture panel state ───────────────────────────────────
-  const [wordGoal, setWordGoal] = useState(3000);
-  const [editorPlainText, setEditorPlainText] = useState("");
-
-  // ── Echo Wall state ───────────────────────────────────────────
+  // ── Echo Wall state ─────────────────────────────────────────
   const [echoWallAnalysis, setEchoWallAnalysis] = useState("");
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [echoWallInspiration, setEchoWallInspiration] = useState("");
@@ -67,7 +59,7 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
-  // ── Write mode store ──────────────────────────────────────────
+  // ── Zustand store ───────────────────────────────────────────
   const selectedText = useUIStore((s) => s.selectedText);
   const setWritingState = useUIStore((s) => s.setWritingState);
   const addSuggestion = useUIStore((s) => s.addSuggestion);
@@ -75,739 +67,232 @@ export default function Home() {
   const setStyleProfile = useUIStore((s) => s.setStyleProfile);
   const styleProfile = useUIStore((s) => s.styleProfile);
 
-  // ── Ghost Text ────────────────────────────────────────────────
+  // ── Ghost Text ──────────────────────────────────────────────
   const { ghostText } = useGhostText(editorRef.current);
 
+  // ── Editor ready ────────────────────────────────────────────
   const handleEditorReady = useCallback((editor: Editor) => {
     editorRef.current = editor;
   }, []);
 
-  // ── Autosave ──────────────────────────────────────────────────
+  // ── Autosave ────────────────────────────────────────────────
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSavingRef = useRef(false);
+  const lastKeypressTime = useRef(Date.now());
 
-  const saveDocument = useCallback(
-    async (title?: string, content?: Record<string, unknown>) => {
-      if (!currentDocId) return;
-      if (isSavingRef.current) return;
+  const saveDocument = useCallback(async (title?: string, content?: Record<string, unknown>) => {
+    if (!currentDocId || isSavingRef.current) return;
+    isSavingRef.current = true;
+    setSaveStatus("saving");
+    try {
+      const body: Record<string, unknown> = {};
+      if (content !== undefined) body.content = content;
+      if (title !== undefined) body.title = title;
+      const res = await fetch(`/api/documents/${currentDocId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Save failed");
+      setSaveStatus("saved");
+    } catch { setSaveStatus("unsaved"); }
+    finally { isSavingRef.current = false; }
+  }, [currentDocId]);
 
-      isSavingRef.current = true;
-      setSaveStatus("saving");
+  const triggerAutosave = useCallback((title?: string) => {
+    if (!currentDocId || !editorRef.current) return;
+    setSaveStatus("unsaved");
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      const json = editorRef.current?.getJSON() ?? null;
+      saveDocument(title, json as Record<string, unknown>);
+    }, AUTOSAVE_DELAY_MS);
+  }, [currentDocId, saveDocument]);
 
-      try {
-        const body: Record<string, unknown> = {};
-        if (content !== undefined) body.content = content;
-        if (title !== undefined) body.title = title;
-
-        const res = await fetch(`/api/documents/${currentDocId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-
-        if (!res.ok) {
-          throw new Error("Save failed");
-        }
-
-        setSaveStatus("saved");
-      } catch (err) {
-        console.error("Autosave error:", err);
-        setSaveStatus("unsaved");
-      } finally {
-        isSavingRef.current = false;
-      }
-    },
-    [currentDocId]
-  );
-
-  const triggerAutosave = useCallback(
-    (title?: string) => {
-      if (!currentDocId || !editorRef.current) return;
-
-      setSaveStatus("unsaved");
-
-      if (autosaveTimerRef.current) {
-        clearTimeout(autosaveTimerRef.current);
-      }
-
-      autosaveTimerRef.current = setTimeout(() => {
-        const json = editorRef.current?.getJSON() ?? null;
-        saveDocument(title, json as Record<string, unknown>);
-      }, AUTOSAVE_DELAY_MS);
-    },
-    [currentDocId, saveDocument]
-  );
-
-  // Cleanup autosave timer on unmount
-  useEffect(() => {
-    return () => {
-      if (autosaveTimerRef.current) {
-        clearTimeout(autosaveTimerRef.current);
-      }
-    };
-  }, []);
-
-  // ── Document CRUD ─────────────────────────────────────────────
-  const handleOpenDocument = useCallback(
-    async (docItem: DocumentListItem) => {
-      try {
-        const res = await fetch(`/api/documents/${docItem.id}`);
-        if (!res.ok) throw new Error("Failed to load");
-        const data = await res.json();
-        const doc: Document = data.document;
-
-        setCurrentDoc(doc);
-        setCurrentDocId(doc.id);
-        setDocumentTitle(doc.title);
-        setSaveStatus("saved");
-
-        // Load content into editor
-        if (editorRef.current && doc.content) {
-          editorRef.current.commands.setContent(doc.content);
-        }
-      } catch (err) {
-        console.error("Error opening document:", err);
-      }
-    },
-    []
-  );
-
+  // ── Document CRUD ───────────────────────────────────────────
   const handleNewDocument = useCallback(async () => {
     try {
       const res = await fetch("/api/documents", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to create");
+      if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       const doc: Document = data.document;
-
-      setCurrentDoc(doc);
-      setCurrentDocId(doc.id);
-      setDocumentTitle("Untitled");
-      setSaveStatus("saved");
-
-      // Clear editor
-      if (editorRef.current) {
-        editorRef.current.commands.clearContent();
-      }
-    } catch (err) {
-      console.error("Error creating document:", err);
-    }
+      setCurrentDoc(doc); setCurrentDocId(doc.id);
+      setDocumentTitle("无标题"); setSaveStatus("saved");
+      editorRef.current?.commands.clearContent();
+    } catch (e) { console.error(e); }
   }, []);
 
-  const handleTitleChange = useCallback(
-    (newTitle: string) => {
-      setDocumentTitle(newTitle);
-      saveDocument(newTitle);
-    },
-    [saveDocument]
-  );
-
-  // ── Editor change handler (for autosave + pause detection) ────
-  const lastKeypressTime = useRef(Date.now());
-
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor || !currentDocId) return;
-
-    const handleUpdate = () => {
-      triggerAutosave();
-      lastKeypressTime.current = Date.now();
-
-      // Clear inspiration and master quotes when user resumes typing
-      setEchoWallInspiration("");
-      setMasterQuotes([]);
-    };
-
-    editor.on("update", handleUpdate);
-    return () => {
-      editor.off("update", handleUpdate);
-    };
-  }, [currentDocId, triggerAutosave]);
-
-  // ── Architecture panel: node click → scroll editor ────────────
-  const handleArchitectureNodeClick = useCallback((position: number) => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    // Navigate editor to the paragraph position
-    const docSize = editor.state.doc.content.size;
-    const targetPos = Math.min(position + 1, docSize);
-    editor.commands.setTextSelection(targetPos);
-    editor.commands.scrollIntoView();
+  const handleOpenDocument = useCallback(async (item: DocumentListItem) => {
+    try {
+      const res = await fetch(`/api/documents/${item.id}`);
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      const doc: Document = data.document;
+      setCurrentDoc(doc); setCurrentDocId(doc.id);
+      setDocumentTitle(doc.title); setSaveStatus("saved");
+      if (editorRef.current && doc.content) editorRef.current.commands.setContent(doc.content);
+    } catch (e) { console.error(e); }
   }, []);
 
-  // ── Echo Wall: 15s polling cycle ──────────────────────────────
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      const editor = editorRef.current;
-      if (!editor) return;
+  const handleTitleChange = useCallback((t: string) => { setDocumentTitle(t); saveDocument(t); }, [saveDocument]);
 
-      // Only poll if editor has content
-      const fullText = editor.getText();
-      if (!fullText.trim()) return;
-
-      // Get last ~500 chars
-      const recentText = fullText.slice(-500);
-
-      setAnalysisLoading(true);
-      try {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: recentText,
-            intent: "explain",
-            documentId: currentDocId,
-          }),
-        });
-
-        if (res.ok && res.body) {
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = "";
-          let analysisText = "";
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-
-            for (const line of lines) {
-              if (!line.startsWith("data: ")) continue;
-              try {
-                const event = JSON.parse(line.slice(6));
-                if (event.type === "option" && event.text && !analysisText) {
-                  analysisText = event.text;
-                }
-              } catch {
-                // skip malformed
-              }
-            }
-          }
-
-          if (analysisText) {
-            setEchoWallAnalysis(analysisText);
-          }
-        }
-      } catch {
-        // Silent fail — analysis is non-critical
-      } finally {
-        setAnalysisLoading(false);
-      }
-
-      // Also trigger inspiration fetch when text > 200 chars
-      if (fullText.length > 200) {
-        try {
-          const inspRes = await fetch("/api/write/inspiration", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ recentText: fullText.slice(-1000) }),
-          });
-
-          if (inspRes.ok) {
-            const inspData = await inspRes.json();
-            if (inspData.quotes) {
-              setMasterQuotes(inspData.quotes);
-            }
-          }
-        } catch {
-          // Silent fail
-        }
-      }
-    }, ANALYSIS_POLL_MS);
-
-    return () => clearInterval(interval);
-  }, [styleProfile]);
-
-  // ── 8s Pause Detection for inspiration ────────────────────────
-  const inspirationFetchedRef = useRef(false);
-
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      // Don't re-trigger if already shown inspiration
-      if (inspirationFetchedRef.current) return;
-
-      const editor = editorRef.current;
-      if (!editor) return;
-
-      const fullText = editor.getText();
-      if (!fullText.trim()) return;
-
-      const paused = Date.now() - lastKeypressTime.current > PAUSE_DETECT_MS;
-      if (!paused) return;
-
-      // User paused 8s — fetch inspiration
-      inspirationFetchedRef.current = true;
-      setInspirationLoading(true);
-
-      try {
-        // Get last paragraph as context
-        const paragraphs = fullText.split("\n").filter((p) => p.trim());
-        const lastParagraph = paragraphs[paragraphs.length - 1] || fullText.slice(-300);
-
-        const res = await fetch("/api/write/suggest", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            selectedText: lastParagraph,
-            intent: "continue",
-          }),
-        });
-
-        if (res.ok) {
-          const reader = res.body?.getReader();
-          if (reader) {
-            const decoder = new TextDecoder();
-            let buffer = "";
-            let inspirationText = "";
-
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split("\n");
-              buffer = lines.pop() || "";
-
-              for (const line of lines) {
-                if (!line.startsWith("data: ")) continue;
-                const data = line.slice(6);
-                let event: StreamEvent;
-                try {
-                  event = JSON.parse(data);
-                } catch {
-                  continue;
-                }
-                if (event.type === "option" && event.text) {
-                  // Take first suggestion only
-                  if (!inspirationText) {
-                    inspirationText = event.text;
-                  }
-                }
-              }
-            }
-
-            if (inspirationText) {
-              setEchoWallInspiration(inspirationText);
-            }
-          }
-        }
-      } catch {
-        // Silent fail
-      } finally {
-        setInspirationLoading(false);
-      }
-    }, PAUSE_CHECK_MS);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // ── Style profile callback ────────────────────────────────────
-  const handleStyleProfileSaved = useCallback(
-    (profile: StyleProfileData) => {
-      setStyleProfile({
-        tone: profile.tone,
-        avg_sentence_length: profile.avg_sentence_length,
-        common_imagery: profile.common_imagery,
-        formality: String(profile.formality),
-        keywords: profile.keywords,
-      });
-    },
-    [setStyleProfile]
-  );
-
-  // ── Write: handle AI suggestions ──────────────────────────────
+  // ── AI Intent handler ───────────────────────────────────────
   const writeAbortRef = useRef<AbortController | null>(null);
-  const writeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleIntent = useCallback(
-    async (intent: Intent, customText?: string) => {
-      if (!selectedText) return;
-
-      // Abort any in-flight request to prevent races
-      if (writeAbortRef.current) {
-        writeAbortRef.current.abort();
-      }
-      if (writeTimeoutRef.current) {
-        clearTimeout(writeTimeoutRef.current);
-      }
-
-      const controller = new AbortController();
-      writeAbortRef.current = controller;
-
-      setCurrentIntent(intent);
-      setWritingState("loading");
-      clearSuggestions();
-
-      // 45s timeout
-      writeTimeoutRef.current = setTimeout(() => {
-        controller.abort();
-      }, WRITE_TIMEOUT_MS);
-
-      try {
-        const body: Record<string, unknown> = {
-          text: selectedText,
-          intent,
-          documentId: currentDocId,
-        };
-        if (intent === "custom" && customText) {
-          body.customText = customText;
-        }
-
-        const response = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error("Request failed");
-        }
-
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error("No response body");
-
-        setWritingState("streaming");
-
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6);
-
-            // Defensive JSON parsing for SSE events
-            let event: StreamEvent;
-            try {
-              event = JSON.parse(data);
-            } catch {
-              console.warn("Skipping malformed SSE event:", data.slice(0, 80));
-              continue;
-            }
-
+  const handleIntent = useCallback(async (intent: Intent, customText?: string) => {
+    if (!selectedText) return;
+    if (writeAbortRef.current) writeAbortRef.current.abort();
+    const controller = new AbortController(); writeAbortRef.current = controller;
+    setCurrentIntent(intent); setWritingState("loading"); clearSuggestions();
+    try {
+      const body: Record<string, unknown> = { text: selectedText, intent, documentId: currentDocId };
+      if (intent === "custom" && customText) body.customText = customText;
+      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal });
+      if (!response.ok) throw new Error("Failed");
+      const reader = response.body?.getReader(); if (!reader) throw new Error("No body");
+      setWritingState("streaming");
+      const decoder = new TextDecoder(); let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n"); buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event: StreamEvent = JSON.parse(line.slice(6));
             if (event.type === "option" && event.text) {
-              const opt: SuggestionOption = {
-                index: event.index!,
-                text: event.text,
-                styleShift: event.styleShift || "",
-              };
-              addSuggestion(opt);
-            } else if (event.type === "done") {
-              setWritingState("idle");
-            } else if (event.type === "error") {
-              throw new Error(event.error || "AI error");
-            }
-          }
-        }
-      } catch (err) {
-        // Ignore abort errors (user triggered a new request)
-        if (controller.signal.aborted) return;
-
-        const msg = err instanceof Error ? err.message : "Something went wrong";
-        console.error("AI suggest error:", msg);
-        clearSuggestions();
-        setWritingState("idle");
-      } finally {
-        // Cleanup timeout if this is still the active controller
-        if (writeAbortRef.current === controller) {
-          writeAbortRef.current = null;
-        }
-        if (writeTimeoutRef.current) {
-          clearTimeout(writeTimeoutRef.current);
-          writeTimeoutRef.current = null;
+              addSuggestion({ index: event.index!, text: event.text, styleShift: event.styleShift || "" });
+            } else if (event.type === "done") setWritingState("idle");
+            else if (event.type === "error") throw new Error(event.error);
+          } catch { /* skip */ }
         }
       }
-    },
-    [selectedText, setWritingState, addSuggestion, clearSuggestions]
-  );
+    } catch (err: unknown) {
+      if (!controller.signal.aborted) { clearSuggestions(); setWritingState("idle"); }
+    } finally {
+      if (writeAbortRef.current === controller) writeAbortRef.current = null;
+    }
+  }, [selectedText, currentDocId, setWritingState, addSuggestion, clearSuggestions]);
 
-  const handleDone = useCallback(() => {
-    // Trigger autosave after suggestion inserted
-    triggerAutosave();
-  }, [triggerAutosave]);
-
-  // ── EchoWall: adopt inspiration ───────────────────────────────
-  const handleAdoptInspiration = useCallback(
-    (text: string) => {
-      const editor = editorRef.current;
-      if (!editor) return;
-
-      // Insert inspiration at cursor position
-      editor
-        .chain()
-        .focus()
-        .insertContent(" " + text)
-        .run();
-
-      setEchoWallInspiration("");
-      triggerAutosave();
-    },
-    [triggerAutosave]
-  );
-
-  // ── EchoWall: web search ──────────────────────────────────────
-  const handleSearch = useCallback(
-    async (query: string) => {
-      setSearchLoading(true);
-      try {
-        const res = await fetch("/api/write/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.results) {
-            setSearchResults(data.results);
-          }
-        }
-      } catch {
-        // Silent fail
-      } finally {
-        setSearchLoading(false);
-      }
-    },
-    []
-  );
-
-  // ── Document import ───────────────────────────────────────────
-  const handleImport = useCallback(
-    (text: string, _filename: string) => {
-      const editor = editorRef.current;
-      if (!editor) return;
-      editor.commands.setContent(text);
-      triggerAutosave();
-    },
-    [triggerAutosave]
-  );
-
-  // ── Blank line double-click ───────────────────────────────────
-  const handleBlankDoubleClick = useCallback(() => {
-    // Open the command palette for custom prompt mode
-    setCommandPaletteOpen(true);
-  }, []);
-
-  // ── Ghost Text feedback ───────────────────────────────────────
+  // ── Ghost feedback ──────────────────────────────────────────
   const handleGhostAccept = useCallback(() => {
     if (!ghostText.text || !ghostText.visible) return;
-    fetch("/api/chat/feedback", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        documentId: currentDocId,
-        suggestionText: ghostText.text,
-        action: "accept",
-        contextPreview: editorRef.current?.getText().slice(-200) || "",
-      }),
-    }).catch(() => {});
-  }, [ghostText.text, ghostText.visible, currentDocId]);
+    fetch("/api/chat/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentId: currentDocId, suggestionText: ghostText.text, action: "accept", contextPreview: editorRef.current?.getText().slice(-200) || "" }) }).catch(() => {});
+  }, [ghostText, currentDocId]);
 
   const handleGhostReject = useCallback(() => {
     if (!ghostText.text || !ghostText.visible) return;
-    fetch("/api/chat/feedback", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        documentId: currentDocId,
-        suggestionText: ghostText.text,
-        action: "reject",
-        contextPreview: editorRef.current?.getText().slice(-200) || "",
-      }),
-    }).catch(() => {});
-  }, [ghostText.text, ghostText.visible, currentDocId]);
+    fetch("/api/chat/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentId: currentDocId, suggestionText: ghostText.text, action: "reject", contextPreview: editorRef.current?.getText().slice(-200) || "" }) }).catch(() => {});
+  }, [ghostText, currentDocId]);
 
-  // ── Keyboard shortcuts ─────────────────────────────────────────
+  // ── EchoWall: 15s poll ──────────────────────────────────────
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
+    const interval = setInterval(async () => {
+      const editor = editorRef.current; if (!editor) return;
+      const fullText = editor.getText(); if (!fullText.trim()) return;
+      const recentText = fullText.slice(-500);
+      setAnalysisLoading(true);
+      try {
+        const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: recentText, intent: "explain", documentId: currentDocId }) });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = "", text = "";
+          while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const lines = buffer.split("\n"); buffer = lines.pop() || ""; for (const line of lines) { if (!line.startsWith("data: ")) continue; try { const e = JSON.parse(line.slice(6)); if (e.type === "option" && e.text && !text) text = e.text; } catch { /* */ } } }
+          if (text) setEchoWallAnalysis(text);
+        }
+      } catch { /* */ } finally { setAnalysisLoading(false); }
+    }, ANALYSIS_POLL_MS);
+    return () => clearInterval(interval);
+  }, [currentDocId]);
 
-      // ⌘J / Ctrl+J: Open command palette
-      if (mod && e.key === "j") {
-        e.preventDefault();
-        setCommandPaletteOpen((prev) => !prev);
-        return;
-      }
-
-      // ⌘K / Ctrl+K: Open command palette (legacy)
-      if (mod && e.key === "k") {
-        e.preventDefault();
-        setCommandPaletteOpen((prev) => !prev);
-        return;
-      }
-
-      // ⌘Enter / Ctrl+Enter: Quick rewrite
-      if (mod && e.key === "Enter" && selectedText) {
-        e.preventDefault();
-        handleIntent("rewrite");
-        return;
-      }
-
-      // Escape: Close command palette
-      if (e.key === "Escape" && commandPaletteOpen) {
-        setCommandPaletteOpen(false);
-      }
+  // ── Keyboard shortcuts ──────────────────────────────────────
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setCommandPaletteOpen(p => !p); }
+      if (e.key === "Escape" && commandPaletteOpen) setCommandPaletteOpen(false);
     };
+    window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
+  }, [commandPaletteOpen]);
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedText, commandPaletteOpen, handleIntent]);
+  // ── Mode handlers ───────────────────────────────────────────
+  const handleSelectDirect = () => setShowModeSelector(false);
+  const handleSelectArchitect = () => router.push("/architect");
+  const handleSelectImport = () => setShowModeSelector(false);
 
-  // ── Command palette handler ────────────────────────────────────
-  const handleCommand = useCallback(
-    (intent: Intent) => {
-      handleIntent(intent);
-    },
-    [handleIntent]
-  );
+  // ── Style callback ──────────────────────────────────────────
+  const handleStyleSaved = useCallback((p: StyleProfileData) => {
+    setStyleProfile({ tone: p.tone, avg_sentence_length: p.avg_sentence_length, common_imagery: p.common_imagery, formality: String(p.formality), keywords: p.keywords });
+  }, [setStyleProfile]);
 
-  const handleCustomCommand = useCallback(
-    (text: string) => {
-      handleIntent("custom", text);
-    },
-    [handleIntent]
-  );
+  // ═══════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════
 
-  // ── Mode selector handlers ────────────────────────────────────
-  const handleSelectDirect = useCallback(() => {
-    setShowModeSelector(false);
-  }, []);
-
-  const handleSelectArchitect = useCallback(() => {
-    router.push("/architect");
-  }, [router]);
-
-  const handleSelectImport = useCallback(() => {
-    setShowModeSelector(false);
-  }, []);
+  const leftW = leftPanel === "open" ? "var(--sidebar-left)" : leftPanel === "collapsed" ? "var(--sidebar-collapsed)" : "0px";
+  const rightW = rightPanel === "open" ? "var(--sidebar-right)" : rightPanel === "collapsed" ? "var(--sidebar-collapsed)" : "0px";
+  const showLeft = leftPanel !== "hidden";
+  const showRight = rightPanel !== "hidden";
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <TopBar
-        documentTitle={documentTitle}
-        onTitleChange={handleTitleChange}
-        saveStatus={saveStatus}
-        onStyleClick={() => setStyleOpen(true)}
-      />
-      <div style={{ display: "flex", flex: 1 }}>
-        {sidebarCollapsed ? (
-          <div
-            style={{
-              width: 48,
-              flexShrink: 0,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              paddingTop: 12,
-              background: "#0d0d0d",
-              borderRight: "1px solid #1a1a1a",
-            }}
-          >
-            <button
-              onClick={() => setSidebarCollapsed(false)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#c4a565",
-                fontSize: 18,
-                cursor: "pointer",
-                padding: 4,
-              }}
-            >
-              →
-            </button>
-          </div>
-        ) : (
-          <div
-            style={{
-              width: 280,
-              flexShrink: 0,
-              background: "#0d0d0d",
-              borderRight: "1px solid #1a1a1a",
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-          >
-            <ArchitecturePanel
-              editorContent={editorPlainText}
-              onNodeClick={handleArchitectureNodeClick}
-              imageryWords={[]}
-              wordGoal={wordGoal}
-              onWordGoalChange={setWordGoal}
-            />
-            <div style={{ flex: 1, overflow: "hidden" }}>
-              <DocumentList
-                onOpenDocument={handleOpenDocument}
-                currentDocId={currentDocId}
-                onToggle={setSidebarCollapsed}
-                onImport={handleImport}
-              />
-            </div>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "var(--bg-primary)" }}>
+      <TopBar documentTitle={documentTitle} onTitleChange={handleTitleChange} saveStatus={saveStatus} onStyleClick={() => setStyleOpen(true)} />
+
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        {/* LEFT PANEL */}
+        {showLeft && (
+          <div style={{ width: leftW, flexShrink: 0, background: "var(--bg-secondary)", borderRight: "1px solid var(--border-light)", display: "flex", flexDirection: "column", overflow: "hidden", transition: "width 0.3s ease" }}>
+            {leftPanel === "open" ? (
+              <>
+                <div style={{ padding: "12px", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }}>架构地图</span>
+                  <button className="btn-icon" onClick={() => setLeftPanel("collapsed")} aria-label="折叠左侧面板">◁</button>
+                </div>
+                <ArchitecturePanel editorContent="" onNodeClick={() => {}} imageryWords={[]} wordGoal={3000} onWordGoalChange={() => {}} />
+                <div style={{ flex: 1, overflow: "auto" }}>
+                  <DocumentList onOpenDocument={handleOpenDocument} currentDocId={currentDocId} onToggle={() => setLeftPanel("hidden")} onImport={() => {}} />
+                </div>
+              </>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 12 }}>
+                <button className="btn-icon" onClick={() => setLeftPanel("open")} aria-label="展开左侧面板">▷</button>
+              </div>
+            )}
           </div>
         )}
-        <main
-          className="flex-1 relative"
-          style={{
-            marginLeft: sidebarCollapsed ? 48 : 280,
-            marginRight: 320,
-          }}
-        >
-          <EditorCanvas
-            onEditorReady={handleEditorReady}
-            onBlankDoubleClick={handleBlankDoubleClick}
-            ghostText={ghostText.text}
-            onGhostAccept={handleGhostAccept}
-            onGhostReject={handleGhostReject}
-          />
+
+        {/* CENTER EDITOR */}
+        <main style={{ flex: 1, display: "flex", justifyContent: "center", overflow: "auto", position: "relative" }}>
+          <div style={{ width: "100%", maxWidth: "var(--editor-max)" }}>
+            <EditorCanvas onEditorReady={handleEditorReady} onBlankDoubleClick={() => setCommandPaletteOpen(true)} ghostText={ghostText.text} onGhostAccept={handleGhostAccept} onGhostReject={handleGhostReject} />
+          </div>
           <AIBubble onIntent={handleIntent} />
-          <SuggestionPreview
-            editor={editorRef.current}
-            intent={currentIntent}
-            onDone={handleDone}
-          />
+          <SuggestionPreview editor={editorRef.current} intent={currentIntent} onDone={() => triggerAutosave()} />
         </main>
-        <EchoWall
-          analysisText={echoWallAnalysis}
-          analysisLoading={analysisLoading}
-          inspiration={echoWallInspiration}
-          inspirationLoading={inspirationLoading}
-          masterQuotes={masterQuotes}
-          searchResults={searchResults}
-          searchLoading={searchLoading}
-          onAdopt={handleAdoptInspiration}
-          onStyleSetupClick={() => setStyleOpen(true)}
-          onSearch={handleSearch}
-        />
+
+        {/* RIGHT PANEL */}
+        {showRight && (
+          <div style={{ width: rightW, flexShrink: 0, background: "var(--bg-secondary)", borderLeft: "1px solid var(--border-light)", display: "flex", flexDirection: "column", overflow: "hidden", transition: "width 0.3s ease" }}>
+            {rightPanel === "open" ? (
+              <>
+                <div style={{ padding: "12px", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }}>回声壁</span>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <button className="btn-icon" onClick={() => setSocraticOpen(true)} aria-label="苏格拉底追问" title="追问">💭</button>
+                    <button className="btn-icon" onClick={() => setRightPanel("collapsed")} aria-label="折叠右侧面板">▷</button>
+                  </div>
+                </div>
+                <div style={{ flex: 1, overflow: "auto" }}>
+                  <EchoWall analysisText={echoWallAnalysis} analysisLoading={analysisLoading} inspiration={echoWallInspiration} inspirationLoading={inspirationLoading} masterQuotes={masterQuotes} searchResults={searchResults} searchLoading={searchLoading} onAdopt={(t) => { editorRef.current?.chain().focus().insertContent(" " + t).run(); }} onStyleSetupClick={() => setStyleOpen(true)} onSearch={async () => {}} />
+                </div>
+              </>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 12 }}>
+                <button className="btn-icon" onClick={() => setRightPanel("open")} aria-label="展开右侧面板">◁</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      <StyleSetup
-        isOpen={styleOpen}
-        onClose={() => setStyleOpen(false)}
-        onProfileSaved={handleStyleProfileSaved}
-      />
-      <CommandPalette
-        isOpen={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        onCommand={handleCommand}
-        onCustomCommand={handleCustomCommand}
-      />
-      <ModeSelector
-        isOpen={showModeSelector}
-        onSelectDirect={handleSelectDirect}
-        onSelectArchitect={handleSelectArchitect}
-        onSelectImport={handleSelectImport}
-        onClose={() => setShowModeSelector(false)}
-      />
+
+      {/* OVERLAYS */}
+      <ModeSelector isOpen={showModeSelector} onSelectDirect={handleSelectDirect} onSelectArchitect={handleSelectArchitect} onSelectImport={handleSelectImport} onClose={() => setShowModeSelector(false)} />
+      <StyleSetup isOpen={styleOpen} onClose={() => setStyleOpen(false)} onProfileSaved={handleStyleSaved} />
+      <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onCommand={(i) => handleIntent(i)} onCustomCommand={(t) => handleIntent("custom", t)} />
+      <SocraticPanel isOpen={socraticOpen} onClose={() => setSocraticOpen(false)} context={editorRef.current?.getText().slice(-500) || ""} />
     </div>
   );
 }
