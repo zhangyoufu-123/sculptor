@@ -12,7 +12,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   snapshotId?: string;
-  type?: "confirmation" | "clarification" | "suggestion" | "normal";
+  type?: string;
   options?: { label: string; value: string }[];
   suggestionNodes?: ArchitectNode[];
   suggestionEdges?: ArchitectEdge[];
