@@ -10,6 +10,7 @@ import StyleSetup from "@/components/StyleSetup";
 import CommandPalette from "@/components/CommandPalette";
 import EchoWall from "@/components/EchoWall";
 import ArchitecturePanel from "@/components/ArchitecturePanel";
+import { useGhostText } from "@/hooks/useGhostText";
 import { useUIStore } from "@/lib/store";
 import type {
   Intent,
@@ -67,6 +68,9 @@ export default function Home() {
   const clearSuggestions = useUIStore((s) => s.clearSuggestions);
   const setStyleProfile = useUIStore((s) => s.setStyleProfile);
   const styleProfile = useUIStore((s) => s.styleProfile);
+
+  // ── Ghost Text ────────────────────────────────────────────────
+  const { ghostText } = useGhostText(editorRef.current);
 
   const handleEditorReady = useCallback((editor: Editor) => {
     editorRef.current = editor;
@@ -561,6 +565,35 @@ export default function Home() {
     setCommandPaletteOpen(true);
   }, []);
 
+  // ── Ghost Text feedback ───────────────────────────────────────
+  const handleGhostAccept = useCallback(() => {
+    if (!ghostText.text || !ghostText.visible) return;
+    fetch("/api/chat/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        documentId: currentDocId,
+        suggestionText: ghostText.text,
+        action: "accept",
+        contextPreview: editorRef.current?.getText().slice(-200) || "",
+      }),
+    }).catch(() => {});
+  }, [ghostText.text, ghostText.visible, currentDocId]);
+
+  const handleGhostReject = useCallback(() => {
+    if (!ghostText.text || !ghostText.visible) return;
+    fetch("/api/chat/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        documentId: currentDocId,
+        suggestionText: ghostText.text,
+        action: "reject",
+        contextPreview: editorRef.current?.getText().slice(-200) || "",
+      }),
+    }).catch(() => {});
+  }, [ghostText.text, ghostText.visible, currentDocId]);
+
   // ── Keyboard shortcuts ─────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -687,6 +720,9 @@ export default function Home() {
           <EditorCanvas
             onEditorReady={handleEditorReady}
             onBlankDoubleClick={handleBlankDoubleClick}
+            ghostText={ghostText.text}
+            onGhostAccept={handleGhostAccept}
+            onGhostReject={handleGhostReject}
           />
           <AIBubble onIntent={handleIntent} />
           <SuggestionPreview

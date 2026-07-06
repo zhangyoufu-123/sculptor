@@ -1,7 +1,8 @@
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import { GhostText } from "@/extensions/ai/GhostText";
 
-export function getEditorExtensions() {
+export function getEditorExtensions(getGhostText?: () => string | null) {
   return [
     StarterKit.configure({
       heading: false,
@@ -10,6 +11,9 @@ export function getEditorExtensions() {
     }),
     Placeholder.configure({
       placeholder: "Start writing...",
+    }),
+    GhostText.configure({
+      getText: getGhostText || (() => null),
     }),
   ];
 }

@@ -8,11 +8,17 @@ import { useCallback, useEffect, useRef } from "react";
 interface EditorCanvasProps {
   onEditorReady?: (editor: NonNullable<ReturnType<typeof useEditor>>) => void;
   onBlankDoubleClick?: () => void;
+  ghostText: string;
+  onGhostAccept?: () => void;
+  onGhostReject?: () => void;
 }
 
 export default function EditorCanvas({
   onEditorReady,
   onBlankDoubleClick,
+  ghostText,
+  onGhostAccept,
+  onGhostReject,
 }: EditorCanvasProps) {
   const setSelectedText = useUIStore((s) => s.setSelectedText);
   const setSelectionRect = useUIStore((s) => s.setSelectionRect);
@@ -23,8 +29,10 @@ export default function EditorCanvas({
   // Track last click for double-click detection on blank paragraphs
   const lastClickRef = useRef<{ time: number; pos: number }>({ time: 0, pos: -1 });
 
+  const getGhostText = useCallback(() => ghostText || null, [ghostText]);
+
   const editor = useEditor({
-    extensions: getEditorExtensions(),
+    extensions: getEditorExtensions(getGhostText),
     editorProps: {
       attributes: {
         class: "prose focus:outline-none max-w-none",
