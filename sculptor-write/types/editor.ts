@@ -173,3 +173,6 @@ export type PipelineStage =
   | "recording_feedback"
   | "done"
   | "error";
+
+// v2.1-Final: Intensity grading
+export type GenerationIntensity = "light" | "normal" | "deep" | "experiment";

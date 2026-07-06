@@ -36,9 +36,9 @@ export const GhostText = Extension.create<GhostTextOptions>({
                 from,
                 () => {
                   const span = document.createElement("span");
-                  span.className = "ghost-text";
-                  span.textContent = text;
-                  span.style.color = "rgba(224, 216, 200, 0.3)";
+                span.className = "ghost-text";
+                span.innerHTML = `<span style="font-size:10px;color:rgba(196,165,101,0.5);margin-right:6px">[Tab]</span>${text}`;
+                span.style.color = "rgba(224, 216, 200, 0.3)";
                   span.style.pointerEvents = "none";
                   span.style.userSelect = "none";
                   return span;

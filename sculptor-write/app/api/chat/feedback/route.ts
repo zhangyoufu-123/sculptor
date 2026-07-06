@@ -69,6 +69,28 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Auto-adjust compliance_rate based on recent feedback
+    if (documentId) {
+      const { data: recentLogs } = await supabase
+        .from("feedback_logs")
+        .select("action")
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (recentLogs && recentLogs.length >= 5) {
+        const accepted = recentLogs.filter((l) => l.action === "accept").length;
+        const rate = accepted / recentLogs.length;
+
+        // Update active style_sample compliance_rate
+        await supabase
+          .from("style_samples")
+          .update({ compliance_rate: rate })
+          .eq("user_id", session.user.id)
+          .eq("is_active", true);
+      }
+    }
+
     return Response.json({ success: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";

@@ -103,6 +103,7 @@ export async function POST(request: NextRequest) {
               explicitIntent: intent,
               userInstruction:
                 body.customText || body.userInstruction || "",
+              intensity: body.intensity || "normal",
             })) {
               controller.enqueue(
                 encoder.encode(`data: ${JSON.stringify(event)}\n\n`)

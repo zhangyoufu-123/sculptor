@@ -4,6 +4,12 @@ import type { Editor } from "@tiptap/react";
 import type { GhostTextState } from "@/types/editor";
 
 const PAUSE_DELAY_MS = 800;
+const INTENSITY_LABELS: Record<string, string> = {
+  "1": "轻续写",
+  "2": "标准续写",
+  "3": "深度重构",
+  "4": "风格实验",
+};
 
 export function useGhostText(editor: Editor | null) {
   const [ghostText, setGhostText] = useState<GhostTextState>({
@@ -11,6 +17,7 @@ export function useGhostText(editor: Editor | null) {
     visible: false,
     position: { from: 0, to: 0 },
   });
+  const [intensity, setIntensity] = useState<string>("2"); // default: normal
 
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -51,6 +58,9 @@ export function useGhostText(editor: Editor | null) {
             body: JSON.stringify({
               text: lastChars,
               intent: "ghost_continue",
+              intensity: ["light", "normal", "deep", "experiment"][
+                parseInt(intensity) - 1
+              ],
             }),
             signal: controller.signal,
           });
@@ -104,11 +114,20 @@ export function useGhostText(editor: Editor | null) {
     };
   }, [editor, ghostText.visible, clearGhost]);
 
-  // Keyboard: Tab accept, Esc reject
+  // Keyboard: Tab accept, Esc reject, Ctrl+digit switch intensity
   useEffect(() => {
-    if (!editor || !ghostText.visible) return;
+    if (!editor) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + digit: switch ghost text intensity
+      if ((e.ctrlKey || e.metaKey) && ["1", "2", "3", "4"].includes(e.key)) {
+        e.preventDefault();
+        setIntensity(e.key);
+        return;
+      }
+
+      if (!ghostText.visible) return;
+
       if (e.key === "Tab" && ghostText.visible) {
         e.preventDefault();
         e.stopPropagation();

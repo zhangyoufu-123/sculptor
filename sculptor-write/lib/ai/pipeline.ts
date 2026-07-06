@@ -13,6 +13,7 @@ interface PipelineInput {
   currentText: string;
   explicitIntent?: string;
   userInstruction?: string;
+  intensity?: "light" | "normal" | "deep" | "experiment";
 }
 
 export async function* runPipeline(
@@ -41,7 +42,8 @@ export async function* runPipeline(
       ctx,
       intent,
       style,
-      materials
+      materials,
+      input.intensity || "normal"
     );
 
     // Step 6: Call LLM

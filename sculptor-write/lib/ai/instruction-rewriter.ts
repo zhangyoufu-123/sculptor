@@ -21,7 +21,8 @@ export function buildFinalPrompt(
   ctx: ContextPackage,
   intent: IntentAnalysis,
   style: StyleConstraints,
-  materials: RelevantMaterial[]
+  materials: RelevantMaterial[],
+  intensity: "light" | "normal" | "deep" | "experiment" = "normal"
 ): FinalPrompt {
   const systemParts: string[] = [
     "You are a writing companion inside Sculptor, an AI-enhanced editor.",
@@ -35,6 +36,15 @@ export function buildFinalPrompt(
     style.activeImagery.length > 0
       ? `- Active imagery: ${style.activeImagery.join(", ")}`
       : "",
+    "",
+    `Generation intensity: ${intensity}`,
+    intensity === "light"
+      ? "- Output 1 sentence only, minimal change, preserve original wording as much as possible"
+      : intensity === "deep"
+      ? "- Output 3-5 sentences, expand with detail and depth, restructure if helpful"
+      : intensity === "experiment"
+      ? `- EXPERIMENT mode: deliberately shift the style. ${ctx.userInstruction || "Try a different voice or approach"}. Be bold and surprising.`
+      : "- Output 2-4 sentences, balanced approach",
     "",
     DE_AI_TONE,
     "",
