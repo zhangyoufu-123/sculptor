@@ -1,28 +1,23 @@
 // types/architect.ts
 
 export type BubbleType =
-  | "thesis"
-  | "argument"
-  | "evidence"
-  | "counterargument"
-  | "transition"
-  | "background"
-  | "imagery";
+  | "thesis" | "argument" | "evidence" | "counterargument"
+  | "transition" | "background" | "imagery" | "custom";
 
 export type EdgeRelation =
-  | "supports"
-  | "contradicts"
-  | "precedes"
-  | "elaborates"
-  | "exemplifies"
-  | "concludes";
+  | "supports" | "contradicts" | "precedes"
+  | "elaborates" | "exemplifies" | "concludes";
 
 export interface ArchitectNode {
   id: string;
   label: string;
   type: BubbleType;
   position: { x: number; y: number };
-  children: string[]; // child node IDs
+  children: string[];
+  notes?: string;          // 备注/摘要
+  targetWords?: number;    // 目标字数
+  priority?: "high" | "medium" | "low";
+  colorTags?: string[];    // 颜色标签
   expanded?: boolean;
   reviewStatus?: "red" | "yellow" | "green";
 }
@@ -51,7 +46,7 @@ export interface ReviewIssue {
 
 export interface ReviewResult {
   issues: ReviewIssue[];
-  overallScore: number; // 0-100
+  overallScore: number;
 }
 
 export interface AlignMessage {
@@ -59,20 +54,23 @@ export interface AlignMessage {
   content: string;
 }
 
-export interface AlignResponse {
-  type: "question" | "template" | "done";
-  content: string;
-  templateType?: string;
+export interface TemplateDef {
+  name: string;
+  description?: string;
+  type: string;
+  nodes: ArchitectNode[];
+  edges: ArchitectEdge[];
 }
 
 export const BUBBLE_COLORS: Record<BubbleType, string> = {
-  thesis: "#c4a565",
-  argument: "#5b8def",
-  evidence: "#4caf50",
-  counterargument: "#e74c3c",
+  thesis: "#D4A853",
+  argument: "#5B8DEF",
+  evidence: "#4CAF50",
+  counterargument: "#E74C3C",
   transition: "#888888",
-  background: "#9b59b6",
-  imagery: "#e67e22",
+  background: "#9B59B6",
+  imagery: "#E67E22",
+  custom: "#607D8B",
 };
 
 export const BUBBLE_LABELS: Record<BubbleType, string> = {
@@ -83,6 +81,7 @@ export const BUBBLE_LABELS: Record<BubbleType, string> = {
   transition: "过渡",
   background: "背景",
   imagery: "意象",
+  custom: "自定义",
 };
 
 export const EDGE_LABELS: Record<EdgeRelation, string> = {
@@ -93,3 +92,6 @@ export const EDGE_LABELS: Record<EdgeRelation, string> = {
   exemplifies: "例证",
   concludes: "结论",
 };
+
+export const PRIORITY_COLORS = { high: "#E74C3C", medium: "#E6A817", low: "#888" };
+export const PRIORITY_LABELS = { high: "高", medium: "中", low: "低" };

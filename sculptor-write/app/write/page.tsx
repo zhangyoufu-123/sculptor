@@ -1,0 +1,208 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Editor } from "@tiptap/react";
+import TopBar from "@/components/TopBar";
+import EditorCanvas from "@/components/EditorCanvas";
+import AIBubble from "@/components/AIBubble";
+import SuggestionPreview from "@/components/SuggestionPreview";
+import CommandPalette from "@/components/CommandPalette";
+import EchoWall from "@/components/EchoWall";
+import StyleSetup from "@/components/StyleSetup";
+import SocraticPanel from "@/components/panels/SocraticPanel";
+import { useGhostText } from "@/hooks/useGhostText";
+import { useUIStore } from "@/lib/store";
+import type { Intent, SuggestionOption, StreamEvent, SaveStatus, StyleProfileData, MasterQuote, SearchResult } from "@/types/editor";
+import type { ArchitectNode } from "@/types/architect";
+import { BUBBLE_COLORS } from "@/types/architect";
+
+const WRITE_TIMEOUT_MS = 45000;
+const AUTOSAVE_DELAY_MS = 2000;
+
+type PanelState = "open" | "collapsed";
+
+export default function WritePage() {
+  const editorRef = useRef<Editor | null>(null);
+  const [leftPanel, setLeftPanel] = useState<PanelState>("open");
+  const [rightPanel, setRightPanel] = useState<PanelState>("open");
+  const [socraticOpen, setSocraticOpen] = useState(false);
+  const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+  const [documentTitle, setDocumentTitle] = useState("无标题");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const [currentIntent, setCurrentIntent] = useState<Intent>("rewrite");
+  const [styleOpen, setStyleOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [echoWallAnalysis, setEchoWallAnalysis] = useState("");
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [echoWallInspiration, setEchoWallInspiration] = useState("");
+
+  const selectedText = useUIStore((s) => s.selectedText);
+  const setWritingState = useUIStore((s) => s.setWritingState);
+  const addSuggestion = useUIStore((s) => s.addSuggestion);
+  const clearSuggestions = useUIStore((s) => s.clearSuggestions);
+  const setStyleProfile = useUIStore((s) => s.setStyleProfile);
+
+  const { ghostText } = useGhostText(editorRef.current);
+
+  // Load skeleton nodes from architect store (in v3.0, passed via URL or store)
+  const [skeletonNodes, setSkeletonNodes] = useState<ArchitectNode[]>([]);
+  const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
+
+  const handleEditorReady = useCallback((editor: Editor) => { editorRef.current = editor; }, []);
+
+  // ── Autosave ────────────────────────────────────────────────
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveDocument = useCallback(async (title?: string, content?: Record<string, unknown>) => {
+    if (!currentDocId) return;
+    setSaveStatus("saving");
+    try {
+      await fetch(`/api/documents/${currentDocId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, content }) });
+      setSaveStatus("saved");
+    } catch { setSaveStatus("unsaved"); }
+  }, [currentDocId]);
+
+  const triggerAutosave = useCallback((title?: string) => {
+    if (!currentDocId || !editorRef.current) return;
+    setSaveStatus("unsaved");
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => saveDocument(title, editorRef.current?.getJSON() as Record<string, unknown>), AUTOSAVE_DELAY_MS);
+  }, [currentDocId, saveDocument]);
+
+  // ── AI Intent ───────────────────────────────────────────────
+  const writeAbortRef = useRef<AbortController | null>(null);
+  const handleIntent = useCallback(async (intent: Intent, customText?: string) => {
+    if (!selectedText) return;
+    if (writeAbortRef.current) writeAbortRef.current.abort();
+    const ctrl = new AbortController(); writeAbortRef.current = ctrl;
+    setCurrentIntent(intent); setWritingState("loading"); clearSuggestions();
+    try {
+      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: selectedText, intent, documentId: currentDocId, customText }), signal: ctrl.signal });
+      if (!res.ok) throw new Error("Failed");
+      const reader = res.body?.getReader(); if (!reader) throw new Error("No body");
+      setWritingState("streaming");
+      const dec = new TextDecoder(); let buf = "";
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        for (const line of buf.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          try { const e: StreamEvent = JSON.parse(line.slice(6)); if (e.type === "option" && e.text) addSuggestion({ index: e.index!, text: e.text, styleShift: e.styleShift || "" }); else if (e.type === "done") setWritingState("idle"); } catch { /* */ }
+        }
+        buf = "";
+      }
+    } catch { clearSuggestions(); setWritingState("idle"); }
+  }, [selectedText, currentDocId, setWritingState, addSuggestion, clearSuggestions]);
+
+  // ── Ghost feedback ──────────────────────────────────────────
+  const handleGhostAccept = useCallback(() => {
+    if (!ghostText.text) return;
+    fetch("/api/chat/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentId: currentDocId, suggestionText: ghostText.text, action: "accept", contextPreview: editorRef.current?.getText().slice(-200) || "" }) }).catch(() => {});
+  }, [ghostText, currentDocId]);
+
+  const handleGhostReject = useCallback(() => {
+    if (!ghostText.text) return;
+    fetch("/api/chat/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentId: currentDocId, suggestionText: ghostText.text, action: "reject", contextPreview: editorRef.current?.getText().slice(-200) || "" }) }).catch(() => {});
+  }, [ghostText, currentDocId]);
+
+  // ── Keyboard ────────────────────────────────────────────────
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setCommandPaletteOpen(p => !p); } };
+    window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
+  }, []);
+
+  const handleStyleSaved = useCallback((p: StyleProfileData) => {
+    setStyleProfile({ tone: p.tone, avg_sentence_length: p.avg_sentence_length, common_imagery: p.common_imagery, formality: String(p.formality), keywords: p.keywords });
+  }, [setStyleProfile]);
+
+  const leftW = leftPanel === "open" ? "280px" : "48px";
+  const rightW = rightPanel === "open" ? "320px" : "48px";
+
+  return (
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "var(--bg-primary)" }}>
+      <TopBar documentTitle={documentTitle} onTitleChange={(t) => { setDocumentTitle(t); saveDocument(t); }} saveStatus={saveStatus} onStyleClick={() => setStyleOpen(true)} />
+
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        {/* LEFT: Structure Map */}
+        <div style={{ width: leftW, flexShrink: 0, background: "var(--bg-secondary)", borderRight: "1px solid var(--border-light)", display: "flex", flexDirection: "column", transition: "width 0.3s", overflow: "hidden" }}>
+          {leftPanel === "open" ? (
+            <>
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>结构地图</span>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button onClick={() => window.location.href = "/architect"} style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", fontSize: 11 }}>编辑架构</button>
+                  <button className="btn-icon" onClick={() => setLeftPanel("collapsed")} aria-label="折叠" style={{ width: 24, height: 24 }}>◁</button>
+                </div>
+              </div>
+              <div style={{ flex: 1, overflow: "auto", padding: "8px" }}>
+                {skeletonNodes.length === 0 ? (
+                  <div style={{ color: "var(--text-tertiary)", fontSize: 12, textAlign: "center", padding: 24 }}>
+                    无架构 — <a href="/architect" style={{ color: "var(--gold)" }}>创建架构</a>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {skeletonNodes.map(n => (
+                      <div
+                        key={n.id}
+                        onClick={() => setActiveNodeId(n.id)}
+                        style={{
+                          padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12,
+                          background: activeNodeId === n.id ? "var(--bg-tertiary)" : "transparent",
+                          border: activeNodeId === n.id ? `1px solid ${BUBBLE_COLORS[n.type]}` : "1px solid transparent",
+                          color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6,
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: BUBBLE_COLORS[n.type], flexShrink: 0 }} />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.label}</span>
+                        {n.targetWords && <span style={{ fontSize: 9, color: "var(--text-tertiary)", marginLeft: "auto" }}>{n.targetWords}字</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div style={{ display: "flex", justifyContent: "center", paddingTop: 12 }}>
+              <button className="btn-icon" onClick={() => setLeftPanel("open")} aria-label="展开">▷</button>
+            </div>
+          )}
+        </div>
+
+        {/* CENTER: Editor */}
+        <main style={{ flex: 1, display: "flex", justifyContent: "center", overflow: "auto", position: "relative" }}>
+          <div style={{ width: "100%", maxWidth: "680px" }}>
+            <EditorCanvas onEditorReady={handleEditorReady} onBlankDoubleClick={() => setCommandPaletteOpen(true)} ghostText={ghostText.text} onGhostAccept={handleGhostAccept} onGhostReject={handleGhostReject} />
+          </div>
+          <AIBubble onIntent={handleIntent} />
+          <SuggestionPreview editor={editorRef.current} intent={currentIntent} onDone={() => triggerAutosave()} />
+        </main>
+
+        {/* RIGHT: EchoWall */}
+        <div style={{ width: rightW, flexShrink: 0, background: "var(--bg-secondary)", borderLeft: "1px solid var(--border-light)", display: "flex", flexDirection: "column", transition: "width 0.3s", overflow: "hidden" }}>
+          {rightPanel === "open" ? (
+            <>
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>回声壁</span>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button className="btn-icon" onClick={() => setSocraticOpen(true)} aria-label="追问" style={{ width: 24, height: 24 }}>💭</button>
+                  <button className="btn-icon" onClick={() => setRightPanel("collapsed")} aria-label="折叠" style={{ width: 24, height: 24 }}>▷</button>
+                </div>
+              </div>
+              <div style={{ flex: 1, overflow: "auto" }}>
+                <EchoWall analysisText={echoWallAnalysis} analysisLoading={analysisLoading} inspiration={echoWallInspiration} inspirationLoading={false} masterQuotes={[]} searchResults={[]} searchLoading={false} onAdopt={(t) => { editorRef.current?.chain().focus().insertContent(" " + t).run(); }} onStyleSetupClick={() => setStyleOpen(true)} onSearch={async () => {}} />
+              </div>
+            </>
+          ) : (
+            <div style={{ display: "flex", justifyContent: "center", paddingTop: 12 }}>
+              <button className="btn-icon" onClick={() => setRightPanel("open")} aria-label="展开">◁</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <StyleSetup isOpen={styleOpen} onClose={() => setStyleOpen(false)} onProfileSaved={handleStyleSaved} />
+      <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onCommand={(i) => handleIntent(i)} onCustomCommand={(t) => handleIntent("custom", t)} />
+      <SocraticPanel isOpen={socraticOpen} onClose={() => setSocraticOpen(false)} context={editorRef.current?.getText().slice(-500) || ""} />
+    </div>
+  );
+}
