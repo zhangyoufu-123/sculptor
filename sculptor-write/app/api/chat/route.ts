@@ -24,10 +24,14 @@ export async function POST(request: NextRequest) {
         async start(controller) {
           const encoder = new TextEncoder();
           try {
-            // Mock mode: return pre-written ghost text
+            // Mock mode: context-aware ghost text
             if (isMockMode()) {
-              const mockText =
-                MOCK_GHOST_TEXTS[Math.floor(Math.random() * MOCK_GHOST_TEXTS.length)];
+              const nodeTitle = body.nodeContext?.title || "";
+              const nodeTip = body.nodeContext?.writingTip || "";
+              let mockText = MOCK_GHOST_TEXTS[Math.floor(Math.random() * MOCK_GHOST_TEXTS.length)];
+              if (nodeTitle) {
+                mockText = `围绕「${nodeTitle}」展开，${mockText}`;
+              }
               await new Promise((r) => setTimeout(r, 400));
               controller.enqueue(
                 encoder.encode(

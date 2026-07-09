@@ -71,9 +71,17 @@ export default function EditorCanvas({
         }
         return false;
       },
-      handleTextSelection: (_view, _from, _to, text) => {
-        const rect = window.getSelection()?.getRangeAt(0)?.getBoundingClientRect();
+      onSelectionUpdate: ({ editor }) => {
+        const { from, to } = editor.state.selection;
+        if (from === to) {
+          setSelectedText("");
+          setSelectionRect(null);
+          setWritingState("idle");
+          return;
+        }
+        const text = editor.state.doc.textBetween(from, to);
         setSelectedText(text);
+        const rect = window.getSelection()?.getRangeAt(0)?.getBoundingClientRect();
         setSelectionRect(
           rect
             ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
@@ -81,12 +89,6 @@ export default function EditorCanvas({
         );
         return false;
       },
-    },
-    onSelectionUpdate: ({ editor }) => {
-      if (editor.state.selection.empty) {
-        setSelectedText("");
-        setWritingState("idle");
-      }
     },
   });
 

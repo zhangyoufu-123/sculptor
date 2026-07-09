@@ -54,8 +54,6 @@ export default function WritePage() {
     echoWall.handleTextSelect(selectedText);
   }, [selectedText]);
 
-  const { candidates: ghostCandidates, activeIndex: ghostActiveIndex, isGhostLoading } = useGhostText(editorRef.current);
-
   // Load skeleton nodes from local store (architect → write bridge)
   const [skeletonNodes, setSkeletonNodes] = useState<ArchitectNode[]>([]);
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
@@ -72,6 +70,15 @@ export default function WritePage() {
       })));
     }
   }, []);
+
+  // v6.1: Ghost text with architecture context
+  const activeNode = skeletonNodes.find((n) => n.id === activeNodeId);
+  const nodeContext = activeNode ? {
+    title: activeNode.label,
+    writingTip: (activeNode as any).writingTip || activeNode.notes,
+    genre: skeletonNodes.length > 0 ? "议论文" : undefined,
+  } : undefined;
+  const { candidates: ghostCandidates, activeIndex: ghostActiveIndex, isGhostLoading } = useGhostText(editorRef.current, nodeContext);
 
   const handleEditorReady = useCallback((editor: Editor) => {
     editorRef.current = editor;

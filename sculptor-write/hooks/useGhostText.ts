@@ -16,7 +16,7 @@ export interface GhostCandidate {
   type: "draft" | "precise" | "conservative" | "jump" | "experiment";
 }
 
-export function useGhostText(editor: Editor | null) {
+export function useGhostText(editor: Editor | null, nodeContext?: { title?: string; writingTip?: string; genre?: string }) {
   const [candidates, setCandidates] = useState<GhostCandidate[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [intensity, setIntensity] = useState<string>("2");
@@ -119,6 +119,7 @@ export function useGhostText(editor: Editor | null) {
               ],
               feedback,
               full_document: docText,
+              nodeContext: nodeContext || null,
             }),
             signal: controller.signal,
           });
