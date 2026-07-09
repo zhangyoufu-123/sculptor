@@ -31,8 +31,14 @@ function mockAnalyze(text: string) {
   const hasEvidence = /例如|比如|数据|研究|表明|显示/.test(text);
   if (len > 200 && !hasEvidence) alerts.push("缺少具体例证或数据支撑");
 
+  // Extract cleaner topic: take first meaningful phrase
+  const firstSentence = text.split(/[。！？]/)[0] || "";
+  const topic = firstSentence.length > 20
+    ? firstSentence.slice(0, 20) + "…"
+    : firstSentence;
+
   return {
-    mirrorPlayback: `这段在论述${text.slice(0, 15).replace(/[，。！？、]/g, "")}相关话题，共 ${len} 字`,
+    mirrorPlayback: `这段在探讨「${topic}」，共 ${len} 字`,
     readerQuestion: hasEvidence
       ? "论据充分，但结论是否可以更明确？"
       : "作为读者，我想看到一个具体的例子来理解你的观点",

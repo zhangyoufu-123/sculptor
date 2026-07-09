@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/deepseek";
 import { isMockMode } from "@/lib/ai/mock-responses";
+import { searchAll, searchStyleLibrary } from "@/lib/knowledge-base";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -27,48 +28,41 @@ const SYSTEM_PROMPT = `你是一位创意写作助手，用户正在写作中需
 要求：内容要具体、实用、中文。风格优雅但不华丽。`;
 
 function mockInspire(text: string) {
-  const topic = text.slice(0, 20).replace(/[，。！？、\s]/g, "") || "这个话题";
+  const kbResults = searchAll(text, 4);
+  const styleResults = searchStyleLibrary(text, 2);
 
-  const inspirations = [
-    {
-      type: "knowledge" as const,
-      content: `关于「${topic}」，古人云："学而不思则罔，思而不学则殆"——可以引用以增加文采`,
-      actionable: false,
-      source: "AI创作" as const,
-    },
-    {
-      type: "suggestion" as const,
-      content: "尝试用一个生活中的具体场景来引入你的观点，让读者产生代入感",
-      actionable: false,
-      source: "AI创作" as const,
-    },
-    {
-      type: "continuation" as const,
-      content: `从这个角度看，${topic}不仅仅是一个技术问题，更是一个深刻的社会命题。它迫使我们重新审视那些习以为常的假设。`,
-      actionable: true,
-      source: "AI创作" as const,
-    },
-  ];
+  const inspirations: { type: string; content: string; actionable: boolean; source: string }[] = [];
 
-  // Add topic-aware metaphor
-  if (text.includes("教育")) {
+  // Style library first (user's own writing)
+  for (const r of styleResults) {
     inspirations.push({
-      type: "knowledge" as const,
-      content: "比喻推荐：「教育不是注满一桶水，而是点燃一把火」——叶芝",
+      type: "knowledge",
+      content: r.content,
       actionable: false,
-      source: "AI创作" as const,
-    });
-  }
-  if (text.includes("技术") || text.includes("人工智能") || text.includes("AI")) {
-    inspirations.push({
-      type: "knowledge" as const,
-      content: "可用对比：「技术的本质不是替代人类，而是放大人类的可能性」",
-      actionable: false,
-      source: "AI创作" as const,
+      source: "历史风格库",
     });
   }
 
-  return { inspirations };
+  // Knowledge base
+  for (const r of kbResults) {
+    inspirations.push({
+      type: r.type === "argument-pattern" ? "suggestion" : "knowledge",
+      content: r.content,
+      actionable: false,
+      source: "通用知识库",
+    });
+  }
+
+  // AI continuation
+  const topic = text.slice(0, 15).replace(/[，。！？、\s]/g, "") || "这个话题";
+  inspirations.push({
+    type: "continuation",
+    content: `从这个角度看，${topic}不仅仅是一个技术问题，更是一个深刻的社会命题。它迫使我们重新审视那些习以为常的假设。`,
+    actionable: true,
+    source: "AI创作",
+  });
+
+  return { inspirations: inspirations.slice(0, 8) };
 }
 
 export async function POST(request: NextRequest) {
