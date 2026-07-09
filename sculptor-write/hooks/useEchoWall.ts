@@ -168,24 +168,38 @@ export function useEchoWall(options?: {
 
       // Trigger analysis after a paragraph completes
       if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current);
-      analysisTimerRef.current = setTimeout(() => {
-        setState((prev) => ({
-          ...prev,
-          diagnosisLoading: true,
-        }));
-        // Analysis will be done by the AI API or local rules
-        // For now, use local micro-alerts
-        const microAlerts = analyzeMicroAlerts(current.text);
-        setState((prev) => ({
-          ...prev,
-          diagnosis: {
-            mirrorPlayback: `这段在展开论述，共 ${current.text.length} 字`,
-            readerQuestion: "作为读者，我想知道——你的核心论点是否已经有了足够的支撑？",
-            microAlerts,
-            updatedAt: Date.now(),
-          },
-          diagnosisLoading: false,
-        }));
+      analysisTimerRef.current = setTimeout(async () => {
+        setState((prev) => ({ ...prev, diagnosisLoading: true }));
+        try {
+          const res = await fetch("/api/echo/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: current.text }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setState((prev) => ({
+              ...prev,
+              diagnosis: { ...data, microAlerts: data.microAlerts || [], updatedAt: Date.now() },
+              diagnosisLoading: false,
+            }));
+          } else {
+            // Fallback to local micro-alerts
+            const microAlerts = analyzeMicroAlerts(current.text);
+            setState((prev) => ({
+              ...prev,
+              diagnosis: {
+                mirrorPlayback: `这段在展开论述，共 ${current.text.length} 字`,
+                readerQuestion: "作为读者，我想知道——你的核心论点是否已经有了足够的支撑？",
+                microAlerts,
+                updatedAt: Date.now(),
+              },
+              diagnosisLoading: false,
+            }));
+          }
+        } catch {
+          setState((prev) => ({ ...prev, diagnosisLoading: false }));
+        }
       }, 1500);
     }
 
@@ -210,21 +224,34 @@ export function useEchoWall(options?: {
         pauseDuration: seconds >= 3 ? seconds : 0,
       }));
 
-      // After 3 seconds pause, trigger inspiration refresh
+      // After 3 seconds pause, call inspire API
       if (seconds === 3 && prevParagraphRef.current.length > 0) {
-        setState((prev) => ({
-          ...prev,
-          inspirations: [
-            ...prev.inspirations,
-            {
-              id: `pause-${Date.now()}`,
-              type: "suggestion" as const,
-              priority: "medium" as const,
-              content: `当前在写「${prev.currentParagraph?.text.slice(0, 30) || "..."}...」，需要灵感吗？`,
-              source: "AI创作",
-            },
-          ].slice(-10), // keep last 10
-        }));
+        (async () => {
+          try {
+            const res = await fetch("/api/echo/inspire", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: prevParagraphRef.current, cursorPosition: 0 }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              const items: InspirationItem[] = (data.inspirations || []).map(
+                (item: { type: string; content: string; actionable?: boolean; source?: string }, i: number) => ({
+                  id: `ai-${Date.now()}-${i}`,
+                  type: (item.type as InspirationItem["type"]) || "suggestion",
+                  priority: item.type === "alert" ? "high" : "medium",
+                  content: item.content,
+                  source: item.source || "AI创作",
+                  actionable: item.actionable || false,
+                })
+              );
+              setState((prev) => ({
+                ...prev,
+                inspirations: [...prev.inspirations, ...items].slice(-15),
+              }));
+            }
+          } catch { /* silent */ }
+        })();
       }
     }, 1000);
 
@@ -246,20 +273,38 @@ export function useEchoWall(options?: {
       selectionLoading: true,
     }));
 
-    // Simulated analysis (will be replaced by API call)
-    const microAlerts = analyzeMicroAlerts(selectedText);
-    setTimeout(() => {
-      setState((prev) => ({
-        ...prev,
-        selectionAnalysis: {
-          mirrorPlayback: `选中了 ${selectedText.length} 字的文段`,
-          readerQuestion: "这段的逻辑是否自洽？有没有需要加强的地方？",
-          microAlerts,
-          updatedAt: Date.now(),
-        },
-        selectionLoading: false,
-      }));
-    }, 800);
+    // Call analyze API for selected text
+    (async () => {
+      try {
+        const res = await fetch("/api/echo/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: selectedText }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setState((prev) => ({
+            ...prev,
+            selectionAnalysis: { ...data, microAlerts: data.microAlerts || [], updatedAt: Date.now() },
+            selectionLoading: false,
+          }));
+        } else {
+          const microAlerts = analyzeMicroAlerts(selectedText);
+          setState((prev) => ({
+            ...prev,
+            selectionAnalysis: {
+              mirrorPlayback: `选中了 ${selectedText.length} 字的文段`,
+              readerQuestion: "这段的逻辑是否自洽？有没有需要加强的地方？",
+              microAlerts,
+              updatedAt: Date.now(),
+            },
+            selectionLoading: false,
+          }));
+        }
+      } catch {
+        setState((prev) => ({ ...prev, selectionLoading: false }));
+      }
+    })();
   }, []);
 
   // ── Intent channel: double-click paragraph ──────────────
