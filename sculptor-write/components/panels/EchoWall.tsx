@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { EchoWallState, InspirationItem } from "@/hooks/useEchoWall";
 
 // ── Codex-inspired design tokens (warm-tone adaptation) ────
@@ -13,6 +13,7 @@ interface EchoWallProps {
   state: EchoWallState;
   onDismissInspiration?: (id: string) => void;
   onAcceptInspiration?: (id: string) => void;
+  onFeedback?: (type: "diagnosis" | "inspiration", id: string, helpful: boolean) => void;
   nodeCount?: number;
   wordCount?: number;
 }
@@ -21,6 +22,7 @@ export default function EchoWall({
   state,
   onDismissInspiration,
   onAcceptInspiration,
+  onFeedback,
   nodeCount = 0,
   wordCount = 0,
 }: EchoWallProps) {
@@ -62,6 +64,7 @@ export default function EchoWall({
         <DiagnosisCard
           diagnosis={activeDiagnosis}
           loading={isLoading}
+          onFeedback={onFeedback ? (helpful: boolean) => onFeedback("diagnosis", `diag-${activeDiagnosis?.updatedAt || 0}`, helpful) : undefined}
         />
 
         {/* Inspiration stream */}
@@ -69,6 +72,7 @@ export default function EchoWall({
           inspirations={inspirations}
           onDismiss={onDismissInspiration}
           onAccept={onAcceptInspiration}
+          onFeedback={onFeedback ? (id: string, helpful: boolean) => onFeedback("inspiration", id, helpful) : undefined}
         />
       </div>
 
@@ -162,10 +166,13 @@ function StatusBar({
 function DiagnosisCard({
   diagnosis,
   loading,
+  onFeedback,
 }: {
   diagnosis: { mirrorPlayback: string; readerQuestion: string; microAlerts: string[]; updatedAt: number } | null;
   loading: boolean;
+  onFeedback?: (helpful: boolean) => void;
 }) {
+  const [feedbackGiven, setFeedbackGiven] = useState(false);
   if (loading) {
     return (
       <div style={cardStyle}>
@@ -230,6 +237,20 @@ function DiagnosisCard({
           </div>
         </div>
       )}
+
+      {/* Feedback buttons */}
+      {onFeedback && (
+        <div style={{ ...sectionStyle, borderTop: "1px solid var(--border-light)", display: "flex", justifyContent: "flex-end", gap: 4 }}>
+          {feedbackGiven ? (
+            <span style={{ fontSize: 10, color: "var(--text-tertiary)", fontStyle: "italic" }}>感谢反馈</span>
+          ) : (
+            <>
+              <button onClick={() => { onFeedback(true); setFeedbackGiven(true); }} style={feedbackBtnStyle} title="有帮助">👍</button>
+              <button onClick={() => { onFeedback(false); setFeedbackGiven(true); }} style={feedbackBtnStyle} title="没帮助">👎</button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -238,10 +259,12 @@ function InspirationStream({
   inspirations,
   onDismiss,
   onAccept,
+  onFeedback,
 }: {
   inspirations: InspirationItem[];
   onDismiss?: (id: string) => void;
   onAccept?: (id: string) => void;
+  onFeedback?: (id: string, helpful: boolean) => void;
 }) {
   // Sort by priority: high first, then medium, then low
   const sorted = useMemo(
@@ -313,7 +336,7 @@ function InspirationStream({
           </div>
 
           {/* Action buttons */}
-          <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+          <div style={{ display: "flex", gap: 4, marginTop: 6, alignItems: "center" }}>
             {item.actionable && onAccept && (
               <button
                 onClick={() => onAccept(item.id)}
@@ -330,11 +353,14 @@ function InspirationStream({
                 采纳
               </button>
             )}
+            {onFeedback && (
+              <>
+                <button onClick={() => onFeedback(item.id, true)} style={feedbackBtnStyle} title="有帮助">👍</button>
+                <button onClick={() => onFeedback(item.id, false)} style={feedbackBtnStyle} title="没帮助">👎</button>
+              </>
+            )}
             {onDismiss && (
-              <button
-                onClick={() => onDismiss(item.id)}
-                style={dismissBtnStyle}
-              >
+              <button onClick={() => onDismiss(item.id)} style={dismissBtnStyle}>
                 忽略
               </button>
             )}
@@ -575,6 +601,17 @@ const dismissBtnStyle: React.CSSProperties = {
   fontSize: 10,
   cursor: "pointer",
   transition: "all 0.15s ease",
+};
+
+const feedbackBtnStyle: React.CSSProperties = {
+  padding: "1px 4px",
+  borderRadius: 3,
+  border: "none",
+  background: "transparent",
+  fontSize: 12,
+  cursor: "pointer",
+  opacity: 0.5,
+  transition: "opacity 0.15s ease",
 };
 
 // ── Footer ────────────────────────────────────────────────

@@ -49,6 +49,11 @@ export default function WritePage() {
   const clearSuggestions = useUIStore((s) => s.clearSuggestions);
   const setStyleProfile = useUIStore((s) => s.setStyleProfile);
 
+  // v6.0: Wire text selection to EchoWall intent channel
+  useEffect(() => {
+    echoWall.handleTextSelect(selectedText);
+  }, [selectedText]);
+
   const { candidates: ghostCandidates, activeIndex: ghostActiveIndex, isGhostLoading } = useGhostText(editorRef.current);
 
   // Load skeleton nodes from local store (architect → write bridge)
@@ -208,6 +213,13 @@ export default function WritePage() {
                     if (text && editorRef.current) {
                       editorRef.current.chain().focus().insertContent(text).run();
                     }
+                  }}
+                  onFeedback={(type, id, helpful) => {
+                    fetch("/api/echo/feedback", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ type, id, helpful, context: editorRef.current?.getText().slice(-200) || "" }),
+                    }).catch(() => {});
                   }}
                   nodeCount={skeletonNodes.length}
                   wordCount={editorRef.current?.getText().length || 0}
