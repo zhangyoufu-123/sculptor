@@ -12,6 +12,7 @@ import StyleSetup from "@/components/StyleSetup";
 import SocraticPanel from "@/components/panels/SocraticPanel";
 import StructureMap from "@/components/panels/StructureMap";
 import { useGhostText } from "@/hooks/useGhostText";
+import { useEchoWall } from "@/hooks/useEchoWall";
 import { useUIStore } from "@/lib/store";
 import type { Intent, SuggestionOption, StreamEvent, SaveStatus, StyleProfileData, MasterQuote, SearchResult } from "@/types/editor";
 import type { ArchitectNode } from "@/types/architect";
@@ -33,9 +34,14 @@ export default function WritePage() {
   const [currentIntent, setCurrentIntent] = useState<Intent>("rewrite");
   const [styleOpen, setStyleOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [echoWallAnalysis, setEchoWallAnalysis] = useState("");
-  const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [echoWallInspiration, setEchoWallInspiration] = useState("");
+  const [editorContent, setEditorContent] = useState("");
+  const [cursorPos, setCursorPos] = useState(0);
+
+  // v6.0 EchoWall engine
+  const echoWall = useEchoWall({
+    editorContent,
+    cursorPosition: cursorPos,
+  });
 
   const selectedText = useUIStore((s) => s.selectedText);
   const setWritingState = useUIStore((s) => s.setWritingState);
@@ -62,7 +68,17 @@ export default function WritePage() {
     }
   }, []);
 
-  const handleEditorReady = useCallback((editor: Editor) => { editorRef.current = editor; }, []);
+  const handleEditorReady = useCallback((editor: Editor) => {
+    editorRef.current = editor;
+    // Track content for EchoWall
+    editor.on("update", () => {
+      setEditorContent(editor.getText());
+      setCursorPos(editor.state.selection.from);
+    });
+    editor.on("selectionUpdate", () => {
+      setCursorPos(editor.state.selection.from);
+    });
+  }, []);
 
   // ── Autosave ────────────────────────────────────────────────
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -196,10 +212,16 @@ export default function WritePage() {
               </div>
               <div style={{ flex: 1, overflow: "auto" }}>
                 <EchoWall
-                  nodes={skeletonNodes}
-                  activeNodeId={activeNodeId}
-                  editorWordCount={editorRef.current?.getText().length || 0}
-                  onNavigateNode={(id) => setActiveNodeId(id)}
+                  state={echoWall.state}
+                  onDismissInspiration={echoWall.dismissInspiration}
+                  onAcceptInspiration={(id) => {
+                    const text = echoWall.acceptInspiration(id);
+                    if (text && editorRef.current) {
+                      editorRef.current.chain().focus().insertContent(text).run();
+                    }
+                  }}
+                  nodeCount={skeletonNodes.length}
+                  wordCount={editorRef.current?.getText().length || 0}
                 />
               </div>
             </>
