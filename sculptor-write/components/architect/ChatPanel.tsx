@@ -18,6 +18,7 @@ interface Message {
   suggestionEdges?: { id: string; from: string; to: string; relation: string }[];
   suggestion?: { type: string; message: string; node_id?: string; auto_fix_available?: boolean };
   suggestionDismissed?: boolean;
+  clarified?: boolean; // v5.2: already answered
 }
 
 interface ChatPanelProps {
@@ -119,8 +120,13 @@ export default function ChatPanel({
               </div>
             )}
 
-            {m.type === "clarification" && m.options && (
+            {m.type === "clarification" && m.options && !m.clarified && (
               <ClarifyCard options={m.options} onSelect={onClarifySelect} />
+            )}
+            {m.type === "clarification" && m.clarified && (
+              <div style={{ marginTop: 4, fontSize: 11, color: "var(--text-tertiary)", fontStyle: "italic", padding: "4px 8px" }}>
+                ✓ 已回答
+              </div>
             )}
             {m.type === "suggestion" && m.suggestionNodes && (
               <SuggestionCard

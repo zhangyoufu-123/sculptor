@@ -18,6 +18,7 @@ interface ChatMsg {
   suggestionNodes?: ArchNode[]; suggestionEdges?: { id: string; from: string; to: string; relation: string }[];
   suggestion?: { type: string; message: string; node_id?: string; auto_fix_available?: boolean };
   suggestionDismissed?: boolean;
+  clarified?: boolean; // v5.2: ClarifyCard already answered
 }
 
 interface GenreOption {
@@ -109,7 +110,7 @@ export default function ArchitectPage() {
                 setProgressPct(ev.progress || 0);
                 continue;
               }
-              // v5.1: Individual node events for incremental rendering
+              // v5.2: Incremental node events — derive parent from children
               if (ev.type === "node" && ev.node) {
                 const ln = ev.node;
                 const archNode: ArchNode = {
@@ -119,7 +120,20 @@ export default function ArchitectPage() {
                   parent: null, children: ln.children || [],
                   order: incNodes.length, isExpanded: true,
                 };
+                // Find existing parent for this node among incNodes
+                for (const existing of incNodes) {
+                  if (existing.children.includes(ln.id)) {
+                    archNode.parent = existing.id;
+                    break;
+                  }
+                }
                 incNodes.push(archNode);
+                // Also derive parent of existing nodes that are children of this new node
+                for (const existing of incNodes) {
+                  if (ln.children?.includes(existing.id) && !existing.parent) {
+                    existing.parent = ln.id;
+                  }
+                }
                 // Incrementally update the editor
                 editor.replaceAll([...incNodes]);
                 continue;
@@ -127,16 +141,32 @@ export default function ArchitectPage() {
               const am: ChatMsg = { id: "a" + Date.now() + Math.random().toString(36).slice(2, 6), role: "assistant", content: ev.message || "", type: ev.type, options: ev.options };
               if (ev.suggestion) am.suggestion = ev.suggestion;
               if (ev.type === "confirmation" && ev.nodes) {
-                // v5.1: After incremental nodes, confirmation provides full structure with edges
+                // v5.2: Derive parent from children arrays, NOT from edges
+                // Edges represent sequential flow; children represent tree hierarchy
                 pendingNodes = ev.nodes.map((ln: { id: string; type: string; label: string; children: string[]; notes?: string; writingTip?: string }, i: number) => {
-                  const parent = ev.edges?.find((e: { to: string; from: string }) => e.to === ln.id)?.from || null;
-                  return { id: ln.id, type: (ln.type as NodeType) || "argument", title: ln.label || "未命名", summary: ln.notes, writingTip: ln.writingTip, parent, children: ln.children || [], order: i, isExpanded: true };
+                  return { id: ln.id, type: (ln.type as NodeType) || "argument", title: ln.label || "未命名", summary: ln.notes, writingTip: ln.writingTip, parent: null, children: ln.children || [], order: i, isExpanded: true };
                 });
+                // Set parent from children relationships
+                for (const node of pendingNodes) {
+                  for (const childId of node.children) {
+                    const child = pendingNodes.find((n) => n.id === childId);
+                    if (child && !child.parent) child.parent = node.id;
+                  }
+                }
               }
               if (ev.type === "suggestion" && ev.nodes) {
-                am.suggestionNodes = ev.nodes.map((ln: { id: string; type: string; label: string; children: string[]; notes?: string }, i: number) => ({
-                  id: ln.id, type: (ln.type as NodeType) || "argument", title: ln.label || "未命名", summary: ln.notes, parent: null, children: ln.children || [], order: i, isExpanded: true,
-                }));
+                am.suggestionNodes = ev.nodes.map((ln: { id: string; type: string; label: string; children: string[]; notes?: string }, i: number) => {
+                  return { id: ln.id, type: (ln.type as NodeType) || "argument", title: ln.label || "未命名", summary: ln.notes, parent: null, children: ln.children || [], order: i, isExpanded: true };
+                });
+                // Set parent from children for suggestion nodes too
+                if (am.suggestionNodes) {
+                  for (const node of am.suggestionNodes) {
+                    for (const childId of node.children) {
+                      const child = am.suggestionNodes.find((n) => n.id === childId);
+                      if (child && !child.parent) child.parent = node.id;
+                    }
+                  }
+                }
               }
               setMsgs((p) => [...p, am]);
             } catch { /* skip */ }
@@ -278,7 +308,7 @@ export default function ArchitectPage() {
       )}
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        <ChatPanel messages={msgs} onSend={sendChat} onRollback={rollback} onAcceptSuggestion={acceptSug} onIgnoreSuggestion={(msgId) => { setMsgs((prev) => prev.map((m) => m.id === msgId ? { ...m, suggestionDismissed: true } : m)); }} onClarifySelect={(v: string) => sendChat(v)} onAutoFix={doAutoFix} loading={cload || !!genreConfirm?.loading} collapsed={!copen} onToggle={() => setCopen((c) => !c)} />
+        <ChatPanel messages={msgs} onSend={sendChat} onRollback={rollback} onAcceptSuggestion={acceptSug} onIgnoreSuggestion={(msgId) => { setMsgs((prev) => prev.map((m) => m.id === msgId ? { ...m, suggestionDismissed: true } : m)); }} onClarifySelect={(v: string) => { setMsgs((prev) => prev.map((m) => m.type === "clarification" ? { ...m, clarified: true } : m)); sendChat(v); }} onAutoFix={doAutoFix} loading={cload || !!genreConfirm?.loading} collapsed={!copen} onToggle={() => setCopen((c) => !c)} />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative" }}>
           <OutlineEditor state={state} moveFocus={editor.moveFocus} focusParent={editor.focusParent} focusChild={editor.focusChild} addNodeAfter={editor.addNodeAfter} addChildNode={editor.addChildNode}
             startEditing={(id) => { const node = state.nodes.find((n) => n.id === id); if (node) { setEditTitle(node.title); setEditSummary(node.summary || ""); } editor.startEditing(id); }}

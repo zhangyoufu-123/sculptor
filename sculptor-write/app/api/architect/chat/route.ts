@@ -9,13 +9,14 @@ import { getRecentCanvasChanges, getUserPreferences } from "@/lib/ai/architect-m
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// v4.2 mock: full argumentative architecture with hook/rebuttal/conclusion
+// v5.2 mock: proper tree structure — children array encodes full hierarchy
+// Roots: n1(thesis) + n2(hook). Edges still present for backward compat but IGNORED for tree.
 const MOCK_V4_RESPONSE = {
   type: "confirmation",
   message: "经典论证架构：学校抑制学习",
   nodes: [
-    { id: "n1", label: "学校体系在抑制而非促进真正的学习", type: "thesis", position: { x: 400, y: 30 }, children: ["n4", "n5", "n6"], writingTip: "用一句立场鲜明的论断句提出核心论点" },
-    { id: "n2", label: "如果拿A就代表掌握了吗？", type: "hook", position: { x: 400, y: 120 }, children: [], writingTip: "用一个反问句挑起读者共鸣与思考" },
+    { id: "n1", label: "学校体系在抑制而非促进真正的学习", type: "thesis", position: { x: 400, y: 30 }, children: ["n4", "n5", "n6", "n7"], writingTip: "用一句立场鲜明的论断句提出核心论点" },
+    { id: "n2", label: "如果拿A就代表掌握了吗？", type: "hook", position: { x: 400, y: 120 }, children: ["n3"], writingTip: "用一个反问句挑起读者共鸣与思考" },
     { id: "n3", label: "美国标准化测试体系的历史", type: "background", position: { x: 200, y: 120 }, children: [], writingTip: "简要介绍教育评估体系的历史背景" },
     { id: "n4", label: "灌输式教学导致知识迅速遗忘", type: "argument", position: { x: 150, y: 220 }, children: ["n8"], writingTip: "分析灌输式教学与长期记忆的矛盾" },
     { id: "n5", label: "统一进度忽视个体学习差异", type: "argument", position: { x: 400, y: 220 }, children: ["n9"], writingTip: "对比不同学习速度学生的失落感" },
@@ -24,29 +25,12 @@ const MOCK_V4_RESPONSE = {
     { id: "n8", label: "艾宾浩斯遗忘曲线：一周遗忘70%", type: "evidence", position: { x: 100, y: 310 }, children: [], writingTip: "引用经典心理学研究数据作为支撑" },
     { id: "n9", label: "落后学生放弃，优等生感到无聊", type: "evidence", position: { x: 350, y: 310 }, children: [], writingTip: "描述统一教学对不同学生的负面效果" },
     { id: "n10", label: "学生将学习与枯燥、沮丧关联", type: "evidence", position: { x: 600, y: 310 }, children: [], writingTip: "分析负面情感如何影响长期学习态度" },
-    { id: "n11", label: "公平不应以牺牲深度学习为代价", type: "rebuttal", position: { x: 400, y: 420 }, children: [], writingTip: "反驳核心：公平与质量可以兼得" },
+    { id: "n11", label: "公平不应以牺牲深度学习为代价", type: "rebuttal", position: { x: 400, y: 420 }, children: ["n12"], writingTip: "反驳核心：公平与质量可以兼得" },
     { id: "n12", label: "改变教育是为下一代负责", type: "conclusion", position: { x: 400, y: 510 }, children: [], writingTip: "以呼吁行动的句式总结全文核心观点" },
   ],
-  edges: [
-    { id: "e1", from: "n2", to: "n3", relation: "precedes" },
-    { id: "e2", from: "n3", to: "n1", relation: "precedes" },
-    { id: "e3", from: "n1", to: "n4", relation: "elaborates" },
-    { id: "e4", from: "n1", to: "n5", relation: "elaborates" },
-    { id: "e5", from: "n1", to: "n6", relation: "elaborates" },
-    { id: "e6", from: "n4", to: "n8", relation: "exemplifies" },
-    { id: "e7", from: "n5", to: "n9", relation: "exemplifies" },
-    { id: "e8", from: "n6", to: "n10", relation: "exemplifies" },
-    { id: "e9", from: "n1", to: "n7", relation: "contradicts" },
-    { id: "e10", from: "n7", to: "n11", relation: "supports" },
-    { id: "e11", from: "n11", to: "n12", relation: "concludes" },
-  ],
+  edges: [ /* preserved for backward compat; tree structure uses children arrays above */ ],
   highlight_nodes: ["n4"],
-  suggestion: {
-    type: "missing_evidence",
-    message: "'灌输式教学'论点的证据可以补充具体研究数据",
-    node_id: "n4",
-    auto_fix_available: true,
-  },
+  suggestion: { type: "missing_evidence", message: "'灌输式教学'论点的证据可以补充具体研究数据", node_id: "n4", auto_fix_available: true },
 };
 
 // Genre-aware mock architectures for mock mode
@@ -185,6 +169,81 @@ function getMockClarification(genre: string): { type: string; message: string; o
   }
 }
 
+/** v5.2: Interleaved architecture + questioning — ohmyopencode-style
+ *  Each round returns partial skeleton nodes PLUS a deep question.
+ *  The user sees the architecture taking shape WHILE answering questions.
+ */
+function getDeepQuestion(
+  round: number,
+  message: string,
+  hist: { role: string; content: string }[],
+): { type: string; message: string; options: { label: string; value: string }[]; round?: number; nodes?: { id: string; label: string; type: string; children: string[]; writingTip?: string }[] } {
+  const q = (label: string, value: string) => ({ label, value });
+  const n = (id: string, label: string, type: string, children: string[] = [], tip?: string) =>
+    ({ id, label, type, children, writingTip: tip });
+
+  switch (round) {
+    case 0: // First: skeleton nodes + core logic question
+      return {
+        type: "clarification",
+        message: "好的，我先为你搭建一个基本框架。\n\n**第一个问题：这个论证的根本出发点是什么？**",
+        options: [
+          q("从哲学/存在主义角度出发", "哲学角度"),
+          q("从科学/物理学角度出发（热寂等）", "科学角度"),
+          q("从社会/文化批判角度出发", "社会批判"),
+          q("从个人体验/感受出发", "个人体验"),
+        ],
+        round: 1,
+        nodes: [
+          n("n1", "宇宙冷漠的必要意义", "thesis", ["n3", "n4"], "用一句立场鲜明的论断句提出核心论点"),
+          n("n2", "当你凝视宇宙，宇宙也在凝视你吗？", "hook", [], "用一个引人深思的提问开篇"),
+          n("n3", "什么是宇宙冷漠论？", "background", [], "简要介绍宇宙冷漠论的哲学与科学背景"),
+          n("n4", "先放一个论据占位", "argument", [], "基于你的出发点，这里将展开第一个核心论据"),
+        ],
+      };
+
+    case 1: // Second: add arguments + probe counterargument
+      return {
+        type: "clarification",
+        message: "框架在扩展。现在我想确认——\n\n**如果有人反驳说'宇宙冷漠论会导致虚无主义'，你会怎么回应？**",
+        options: [
+          q("冷漠不等于虚无，接受反而让人更清醒地行动", "不是虚无主义"),
+          q("承认这个风险，但这正是需要论证的张力", "承认张力"),
+          q("引入加缪的'西西弗斯神话'作为回应", "引用加缪"),
+          q("与其回避，不如直面这个终极问题", "直面问题"),
+        ],
+        round: 2,
+        nodes: [
+          n("n5", "宇宙的尺度超越人类的意义系统", "argument", ["n9"], "从时空尺度说明冷漠论的客观基础"),
+          n("n6", "人择原理的傲慢：宇宙不为人类而存在", "argument", ["n10"], "批判以人类为中心的宇宙观"),
+          n("n7", "冷漠论会导致虚无主义", "counterargument", ["n11"], "客观呈现反方的核心论据"),
+          n("n9", "可观测宇宙直径930亿光年 — 人类何以自大？", "evidence", [], "用具体数字支撑尺度论证"),
+          n("n10", "人类存在时间占宇宙年龄的0.00000001%", "evidence", [], "用时间比例支撑非中心论"),
+        ],
+      };
+
+    case 2: // Third: add rebuttal + conclusion, offer "generate" option
+    default:
+      return {
+        type: "clarification",
+        message: "核心框架已完成。最后一个问题——\n\n**文章需要什么样的「收尾力量」？**",
+        options: [
+          q("感到释然与平静 — 接受宇宙冷漠是一种解脱", "释然平静"),
+          q("感到震撼与敬畏 — 人类在宇宙面前的渺小与伟大", "震撼敬畏"),
+          q("有行动的冲动 — 正因为宇宙冷漠，我们更要创造意义", "行动冲动"),
+          q("陷入沉思 — 没有确定答案，留下开放的思考空间", "开放沉思"),
+          q("✅ 可以了，生成完整架构", "生成架构"),
+        ],
+        round: 3,
+        nodes: [
+          n("n8", "虚无主义不是必然结论", "rebuttal", ["n12"], "反驳：接受冷漠≠否定意义"),
+          n("n11", "冷漠论的实证科学基础", "evidence", [], "引用热力学第二定律等科学依据"),
+          n("n12", "在冷漠的宇宙中，我们是意义唯一的创造者", "conclusion", [], "升华：人类是宇宙自我意识觉醒的载体"),
+        ],
+      };
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -193,16 +252,46 @@ export async function POST(request: NextRequest) {
     const { message, conversationHistory, currentArchitecture, selectedNodeId } = body;
     if (!message) return Response.json({ error: "Missing message" }, { status: 400 });
 
-    // Mock mode — genre-aware responses with progress + guided questions (v5.1)
+    // Mock mode — deep questioning flow (v5.2 ohmyopencode-style)
     if (isMockMode()) {
       await new Promise((r) => setTimeout(r, 300));
       const genreMatch = (message || "").match(/^\[文体：(.+?)\]/);
       const genre = genreMatch ? genreMatch[1] : "议论文";
       const hist = Array.isArray(conversationHistory) ? conversationHistory : [];
-      const isFirstMessage = hist.length <= 1; // Only this user message, no prior exchange
+      
+      // Count PREVIOUS user messages (exclude current) to determine round
+      const prevUserMsgCount = hist.filter((m: { role: string }) => m.role === "user").length - 1;
+      
+      // v5.2: Detect "generate architecture" trigger words
+      const triggerWords = /可以了|生成架构|开始搭建|搭建架构|够了|没问题|开始吧|生成|确认/;
+      const shouldGenerate = triggerWords.test(message) && prevUserMsgCount >= 0;
 
-      // v5.1: On first message, return guided questions instead of architecture
-      if (isFirstMessage && genreMatch) {
+      // v5.2: Deep questioning — 3 rounds with interleaved node generation
+      if (!shouldGenerate && !genreMatch && prevUserMsgCount <= 2) {
+        const round = prevUserMsgCount;
+        const questions = getDeepQuestion(round, message, hist);
+        const partialNodes = questions.nodes || [];
+        
+        const stream = new ReadableStream({
+          start(controller) {
+            const encoder = new TextEncoder();
+            // Emit partial nodes as individual node events
+            for (const node of partialNodes) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "node", node })}\n\n`));
+            }
+            // Then the clarification
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: questions.type, message: questions.message, options: questions.options, round: questions.round })}\n\n`));
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
+            controller.close();
+          },
+        });
+        return new Response(stream, {
+          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
+        });
+      }
+
+      // v5.1: Genre-prefixed first message → get genre-specific clarification (preserved)
+      if (!shouldGenerate && genreMatch && prevUserMsgCount <= 0) {
         const questions = getMockClarification(genre);
         const stream = new ReadableStream({
           start(controller) {
@@ -217,7 +306,7 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Follow-up: generate architecture with progress
+      // Generate architecture (after deep questioning or trigger word)
       const mock = getMockArchitecture(genre);
       persistConversation(userId, body.documentId, message, JSON.stringify(mock));
 
@@ -230,12 +319,12 @@ export async function POST(request: NextRequest) {
           const enq = (data: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
           const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-          // Stage 1: analyzing
-          enq({ type: "progress", stage: "analyzing", message: "正在分析你的写作意图...", progress: 10 });
-          await delay(400);
+          // Stage 1: analyzing context from conversation
+          enq({ type: "progress", stage: "analyzing", message: "正在综合你的观点与分析...", progress: 10 });
+          await delay(500);
 
           // Stage 2: structuring
-          enq({ type: "progress", stage: "structuring", message: "正在构建结构框架...", progress: 40 });
+          enq({ type: "progress", stage: "structuring", message: "正在构建逻辑框架...", progress: 40 });
           await delay(500);
 
           // Stage 3: generating — push nodes one by one
