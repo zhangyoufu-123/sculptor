@@ -142,17 +142,17 @@ export default function ArchitectPage() {
               if (ev.suggestion) am.suggestion = ev.suggestion;
               if (ev.type === "confirmation" && ev.nodes) {
                 // v5.2: Derive parent from children arrays, NOT from edges
-                // Edges represent sequential flow; children represent tree hierarchy
-                pendingNodes = ev.nodes.map((ln: { id: string; type: string; label: string; children: string[]; notes?: string; writingTip?: string }, i: number) => {
+                const nodes: ArchNode[] = ev.nodes.map((ln: { id: string; type: string; label: string; children: string[]; notes?: string; writingTip?: string }, i: number) => {
                   return { id: ln.id, type: (ln.type as NodeType) || "argument", title: ln.label || "未命名", summary: ln.notes, writingTip: ln.writingTip, parent: null, children: ln.children || [], order: i, isExpanded: true };
                 });
                 // Set parent from children relationships
-                for (const node of pendingNodes) {
+                for (const node of nodes) {
                   for (const childId of node.children) {
-                    const child = pendingNodes.find((n) => n.id === childId);
+                    const child = nodes.find((n) => n.id === childId);
                     if (child && !child.parent) child.parent = node.id;
                   }
                 }
+                pendingNodes = nodes;
               }
               if (ev.type === "suggestion" && ev.nodes) {
                 am.suggestionNodes = ev.nodes.map((ln: { id: string; type: string; label: string; children: string[]; notes?: string }, i: number) => {
