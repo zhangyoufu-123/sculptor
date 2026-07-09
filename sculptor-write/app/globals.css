@@ -1,38 +1,53 @@
-/* globals.css — Sculptor v2.1 Design System */
-/* 严格遵循 Sculptor 前端 UI/UX 细节规范文档 v1.0 */
+/* globals.css — Sculptor v5.1-TacitKnowledge */
+/* 暖色调暗色主题设计系统 */
 
 /* ═══════════════════════════════════════════════════════════════
-   设计令牌 (Design Tokens)
+   设计令牌 (Design Tokens) — 默认 Warm Night
    ═══════════════════════════════════════════════════════════════ */
 
-:root {
-  /* 背景色系 */
-  --bg-primary: #1A1A1A;
-  --bg-secondary: #242424;
-  --bg-tertiary: #2E2E2E;
-  --bg-elevated: #333333;
+:root, [data-theme="warm-night"] {
+  /* 背景色系 — 暖黑调 */
+  --bg-primary: #1E1B1A;
+  --bg-secondary: #262220;
+  --bg-tertiary: #2E2A27;
+  --bg-elevated: #36312D;
 
-  /* 文字色系 */
-  --text-primary: #E6E0D4;
-  --text-secondary: #A09888;
-  --text-tertiary: #8A8278;
-  --text-inverse: #1A1A1A;
+  /* 文字色系 — 暖米黄调 */
+  --text-primary: #EBE4D9;
+  --text-secondary: #BFB5A4;
+  --text-tertiary: #8A8074;
+  --text-inverse: #1E1B1A;
 
   /* 品牌金色 */
-  --gold: #D4A853;
-  --gold-hover: #E0C070;
-  --gold-active: #C49A3E;
-  --gold-glow: rgba(212, 168, 83, 0.4);
+  --gold: #c9a95c;
+  --gold-hover: #d4b86a;
+  --gold-active: #b8934a;
+  --gold-glow: rgba(201, 169, 92, 0.35);
+
+  /* 暖色辅助 */
+  --color-warm-100: #F5F0E8;
+  --color-warm-200: #E8DFD3;
+  --color-warm-300: #D4C8B5;
+  --color-accent-warm: #C49A6C;
 
   /* 语义色 */
   --success: #4CAF50;
-  --warning: #E6A817;
-  --error: #E05D5D;
+  --warning: #e6a817;
+  --error: #e05d5d;
   --info: #4A90D9;
 
-  /* 边框 */
-  --border: #3A3A3A;
-  --border-light: #2A2A2A;
+  /* 边框 */  
+  --border: #3D3732;
+  --border-light: #2E2A27;
+
+  /* Ghost Text — 暖灰色 */
+  --ghost-text: #8A7A6A;
+  --ghost-text-loading: #A09080;
+
+  /* 骨架屏 */
+  --skeleton-start: #2E2A27;
+  --skeleton-mid: #36312D;
+  --skeleton-end: #2E2A27;
 
   /* 字体 */
   --font-body: 'Source Serif 4', 'Noto Serif SC', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
@@ -55,6 +70,106 @@
   --sidebar-right: 320px;
   --editor-max: 680px;
   --sidebar-collapsed: 48px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   主题：晨曦 Dawn（浅米色模拟纸张）
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="dawn"] {
+  --bg-primary: #F5F0E8;
+  --bg-secondary: #EDE7DB;
+  --bg-tertiary: #E5DECE;
+  --bg-elevated: #FFFCF5;
+
+  --text-primary: #3D3530;
+  --text-secondary: #6B5F55;
+  --text-tertiary: #9B8D82;
+  --text-inverse: #F5F0E8;
+
+  --gold: #B8862D;
+  --gold-hover: #C9973E;
+  --gold-active: #A07025;
+  --gold-glow: rgba(184, 134, 45, 0.25);
+
+  --color-warm-100: #FFF5E6;
+  --color-warm-200: #F5E6D0;
+  --color-warm-300: #D4C8B5;
+  --color-accent-warm: #C49A6C;
+
+  --border: #D4C8B5;
+  --border-light: #E5DECE;
+
+  --ghost-text: #B0A090;
+  --ghost-text-loading: #C0B0A0;
+
+  --skeleton-start: #E5DECE;
+  --skeleton-mid: #EDE7DB;
+  --skeleton-end: #E5DECE;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   主题：墨砚 Inkstone（纯黑+金，保留旧版）
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="inkstone"] {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-tertiary: #1a1a1a;
+  --bg-elevated: #222222;
+
+  --text-primary: #e0d4b8;
+  --text-secondary: #a89870;
+  --text-tertiary: #7a7058;
+  --text-inverse: #0a0a0a;
+
+  --gold: #c9a95c;
+  --gold-hover: #d4b86a;
+  --gold-active: #b8934a;
+  --gold-glow: rgba(201, 169, 92, 0.35);
+
+  --border: #252525;
+  --border-light: #1a1a1a;
+
+  --ghost-text: #6A6A6A;
+  --ghost-text-loading: #7A7A7A;
+
+  --skeleton-start: #1a1a1a;
+  --skeleton-mid: #222;
+  --skeleton-end: #1a1a1a;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   主题：竹林 Bamboo（浅绿灰+深绿）
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="bamboo"] {
+  --bg-primary: #1C211B;
+  --bg-secondary: #242A23;
+  --bg-tertiary: #2C332B;
+  --bg-elevated: #353D33;
+
+  --text-primary: #DCE5D8;
+  --text-secondary: #A5B5A0;
+  --text-tertiary: #7A8A75;
+  --text-inverse: #1C211B;
+
+  --gold: #8BAA75;
+  --gold-hover: #9CBA85;
+  --gold-active: #7A9665;
+  --gold-glow: rgba(139, 170, 117, 0.30);
+
+  --color-warm-100: #EEF5EA;
+  --color-warm-200: #DCE5D8;
+  --color-warm-300: #C5D0C0;
+  --color-accent-warm: #A5B5A0;
+
+  --border: #353D33;
+  --border-light: #2C332B;
+
+  --ghost-text: #6A7A65;
+  --ghost-text-loading: #7A8A75;
+
+  --skeleton-start: #2C332B;
+  --skeleton-mid: #353D33;
+  --skeleton-end: #2C332B;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -90,11 +205,11 @@ html, body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #3A3A3A;
+  background: var(--border);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #5A5A5A;
+  background: var(--text-tertiary);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -131,8 +246,8 @@ html, body {
   transition: all 0.05s ease;
 }
 .btn-primary:disabled {
-  background: #5A5A5A;
-  color: #8A8A8A;
+  background: var(--text-tertiary);
+  color: var(--border-light);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
@@ -163,7 +278,7 @@ html, body {
   color: var(--gold);
 }
 .btn-secondary:active {
-  background: rgba(212, 168, 83, 0.1);
+  background: rgba(201, 169, 92, 0.1);
 }
 
 .btn-icon {
@@ -205,11 +320,11 @@ html, body {
   width: 100%;
 }
 .input-field:hover {
-  border-color: #5A5A5A;
+  border-color: var(--text-tertiary);
 }
 .input-field:focus {
   border-color: var(--gold);
-  box-shadow: 0 0 0 3px rgba(212, 168, 83, 0.15);
+  box-shadow: 0 0 0 3px var(--gold-glow);
 }
 .input-field::placeholder {
   color: var(--text-tertiary);
@@ -269,7 +384,7 @@ html, body {
    ═══════════════════════════════════════════════════════════════ */
 
 .ghost-text {
-  color: #6A6A6A;
+  color: var(--ghost-text);
   font-style: italic;
   opacity: 0.8;
   pointer-events: none;
@@ -282,7 +397,7 @@ html, body {
    ═══════════════════════════════════════════════════════════════ */
 
 .skeleton {
-  background: linear-gradient(90deg, #2A2A2A 25%, #333 50%, #2A2A2A 75%);
+  background: linear-gradient(90deg, var(--skeleton-start) 25%, var(--skeleton-mid) 50%, var(--skeleton-start) 75%);
   background-size: 200% 100%;
   animation: skeleton-loading 1.5s infinite;
   border-radius: 4px;
@@ -313,12 +428,38 @@ html, body {
 
 .ProseMirror:focus {
   outline: none;
-  box-shadow: 0 0 0 1px rgba(212, 168, 83, 0.2);
+  box-shadow: 0 0 0 1px var(--gold-glow);
 }
 
 /* ═══════════════════════════════════════════════════════════════
    Reduced motion
    ═══════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════
+   Architect canvas — drag feel
+   ═══════════════════════════════════════════════════════════════ */
+
+.arch-bubble {
+  transition: left 0.2s cubic-bezier(0.25, 0.8, 0.25, 1.2),
+              top 0.2s cubic-bezier(0.25, 0.8, 0.25, 1.2),
+              box-shadow 0.2s ease,
+              transform 0.15s ease;
+}
+.arch-bubble.dragging {
+  transition: box-shadow 0.1s ease, transform 0.1s ease;
+  cursor: grabbing !important;
+  z-index: 100 !important;
+}
+
+@keyframes highlight-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--gold-glow); }
+  50% { box-shadow: 0 0 24px var(--gold); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

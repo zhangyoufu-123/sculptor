@@ -3,7 +3,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { GhostText } from "@/extensions/ai/GhostText";
 import { SelectionGlow } from "@/extensions/ui/SelectionGlow";
 
-export function getEditorExtensions(getGhostText?: () => string | null) {
+export function getEditorExtensions(getGhostText?: () => string | null, isGhostLoading?: () => boolean) {
   return [
     StarterKit.configure({
       heading: false,
@@ -15,6 +15,7 @@ export function getEditorExtensions(getGhostText?: () => string | null) {
     }),
     GhostText.configure({
       getText: getGhostText || (() => null),
+      isLoading: isGhostLoading || (() => false),
     }),
     SelectionGlow,
   ];

@@ -1,124 +1,127 @@
 {
   "name": "议论文",
-  "type": "argumentative",
-  "defaultNodes": [
+  "description": "立论、论证、驳论的经典议论文结构，适合学术写作和观点表达",
+  "icon": "⚖️",
+  "nodes": [
     {
-      "id": "n1",
-      "label": "核心论点",
+      "id": "arg_01",
       "type": "thesis",
-      "position": {
-        "x": 400,
-        "y": 30
-      },
-      "children": [
-        "n2",
-        "n3",
-        "n4"
-      ]
+      "title": "核心论点",
+      "summary": "明确表达你的中心论点，一句话概括全文立场",
+      "parent": null,
+      "children": ["arg_02", "arg_03", "arg_04", "arg_05"],
+      "order": 1,
+      "isExpanded": true
     },
     {
-      "id": "n2",
-      "label": "分论点一",
+      "id": "arg_02",
+      "type": "hook",
+      "title": "开篇引子",
+      "summary": "用名言、现象或故事引入话题，激发读者兴趣",
+      "parent": "arg_01",
+      "children": [],
+      "order": 2,
+      "isExpanded": true
+    },
+    {
+      "id": "arg_03",
       "type": "argument",
-      "position": {
-        "x": 150,
-        "y": 130
-      },
-      "children": [
-        "n5"
-      ]
+      "title": "分论点一",
+      "summary": "第一个支撑论点，从理据层面展开论述",
+      "parent": "arg_01",
+      "children": ["arg_06", "arg_07"],
+      "order": 3,
+      "isExpanded": true
     },
     {
-      "id": "n3",
-      "label": "分论点二",
+      "id": "arg_04",
       "type": "argument",
-      "position": {
-        "x": 400,
-        "y": 130
-      },
-      "children": [
-        "n6"
-      ]
+      "title": "分论点二",
+      "summary": "第二个支撑论点，从数据或实例层面论证",
+      "parent": "arg_01",
+      "children": ["arg_08"],
+      "order": 4,
+      "isExpanded": true
     },
     {
-      "id": "n4",
-      "label": "分论点三",
+      "id": "arg_05",
       "type": "argument",
-      "position": {
-        "x": 650,
-        "y": 130
-      },
-      "children": [
-        "n7"
-      ]
+      "title": "分论点三",
+      "summary": "第三个支撑论点，深入拓展论证深度",
+      "parent": "arg_01",
+      "children": ["arg_09"],
+      "order": 5,
+      "isExpanded": true
     },
     {
-      "id": "n5",
-      "label": "支持性论据",
+      "id": "arg_06",
       "type": "evidence",
-      "position": {
-        "x": 150,
-        "y": 230
-      },
-      "children": []
+      "title": "经典引证",
+      "summary": "引用权威文献、经典著作作为论据支撑",
+      "parent": "arg_03",
+      "children": [],
+      "order": 6,
+      "isExpanded": true
     },
     {
-      "id": "n6",
-      "label": "数据案例",
+      "id": "arg_07",
       "type": "evidence",
-      "position": {
-        "x": 400,
-        "y": 230
-      },
-      "children": []
+      "title": "现实案例",
+      "summary": "以现实事件或数据佐证分论点一",
+      "parent": "arg_03",
+      "children": [],
+      "order": 7,
+      "isExpanded": true
     },
     {
-      "id": "n7",
-      "label": "反方观点",
+      "id": "arg_08",
+      "type": "evidence",
+      "title": "数据支撑",
+      "summary": "提供统计数据或研究结果为分论点二提供实证",
+      "parent": "arg_04",
+      "children": [],
+      "order": 8,
+      "isExpanded": true
+    },
+    {
+      "id": "arg_09",
       "type": "counterargument",
-      "position": {
-        "x": 650,
-        "y": 230
-      },
-      "children": []
-    }
-  ],
-  "defaultEdges": [
-    {
-      "id": "e1",
-      "from": "n1",
-      "to": "n2",
-      "relation": "elaborates"
+      "title": "反方观点",
+      "summary": "呈现对立观点，体现思辨深度",
+      "parent": "arg_05",
+      "children": ["arg_10"],
+      "order": 9,
+      "isExpanded": true
     },
     {
-      "id": "e2",
-      "from": "n1",
-      "to": "n3",
-      "relation": "elaborates"
+      "id": "arg_10",
+      "type": "rebuttal",
+      "title": "驳斥回应",
+      "summary": "针对反方观点进行有力反驳",
+      "parent": "arg_09",
+      "children": [],
+      "order": 10,
+      "isExpanded": true
     },
     {
-      "id": "e3",
-      "from": "n1",
-      "to": "n4",
-      "relation": "elaborates"
+      "id": "arg_11",
+      "type": "transition",
+      "title": "承上启下",
+      "summary": "从论证过渡到总结，串联全文逻辑",
+      "parent": "arg_01",
+      "children": ["arg_12"],
+      "order": 11,
+      "isExpanded": true
     },
     {
-      "id": "e4",
-      "from": "n2",
-      "to": "n5",
-      "relation": "exemplifies"
-    },
-    {
-      "id": "e5",
-      "from": "n3",
-      "to": "n6",
-      "relation": "exemplifies"
-    },
-    {
-      "id": "e6",
-      "from": "n4",
-      "to": "n7",
-      "relation": "contradicts"
+      "id": "arg_12",
+      "type": "conclusion",
+      "title": "总结升华",
+      "summary": "重申论点，提出展望或号召，收束全文",
+      "parent": "arg_11",
+      "children": [],
+      "order": 12,
+      "isExpanded": true
     }
   ]
 }

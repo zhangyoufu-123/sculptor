@@ -9,6 +9,7 @@ interface EditorCanvasProps {
   onEditorReady?: (editor: NonNullable<ReturnType<typeof useEditor>>) => void;
   onBlankDoubleClick?: () => void;
   ghostText: string;
+  isGhostLoading?: () => boolean;
   onGhostAccept?: () => void;
   onGhostReject?: () => void;
 }
@@ -17,6 +18,7 @@ export default function EditorCanvas({
   onEditorReady,
   onBlankDoubleClick,
   ghostText,
+  isGhostLoading,
   onGhostAccept,
   onGhostReject,
 }: EditorCanvasProps) {
@@ -32,7 +34,7 @@ export default function EditorCanvas({
   const getGhostText = useCallback(() => ghostText || null, [ghostText]);
 
   const editor = useEditor({
-    extensions: getEditorExtensions(getGhostText),
+    extensions: getEditorExtensions(getGhostText, isGhostLoading),
     editorProps: {
       attributes: {
         class: "prose focus:outline-none max-w-none",

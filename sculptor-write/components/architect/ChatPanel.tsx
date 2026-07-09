@@ -5,7 +5,7 @@ import ChatMessage from "./ChatMessage";
 import QuickCommands from "./QuickCommands";
 import ClarifyCard from "./ClarifyCard";
 import SuggestionCard from "./SuggestionCard";
-import type { ArchitectNode, ArchitectEdge } from "@/types/architect";
+import type { ArchNode } from "@/types/architect";
 
 interface Message {
   id: string;
@@ -14,25 +14,36 @@ interface Message {
   snapshotId?: string;
   type?: string;
   options?: { label: string; value: string }[];
-  suggestionNodes?: ArchitectNode[];
-  suggestionEdges?: ArchitectEdge[];
+  suggestionNodes?: ArchNode[];
+  suggestionEdges?: { id: string; from: string; to: string; relation: string }[];
+  suggestion?: { type: string; message: string; node_id?: string; auto_fix_available?: boolean };
+  suggestionDismissed?: boolean;
 }
 
 interface ChatPanelProps {
   messages: Message[];
   onSend: (text: string) => void;
   onRollback: (messageId: string) => void;
-  onAcceptSuggestion: (nodes: ArchitectNode[], edges: ArchitectEdge[]) => void;
-  onIgnoreSuggestion: () => void;
+  onAcceptSuggestion: (nodes: ArchNode[], edges: { id: string; from: string; to: string; relation: string }[]) => void;
+  onIgnoreSuggestion: (messageId: string) => void;
   onClarifySelect: (value: string) => void;
+  onAutoFix: (messageId: string, suggestion: Message["suggestion"]) => void;
   loading: boolean;
   collapsed: boolean;
   onToggle: () => void;
 }
 
+const SUGGESTION_LABELS: Record<string, string> = {
+  missing_evidence: "缺少论据",
+  imbalance: "结构失衡",
+  better_title: "标题可优化",
+  logical_gap: "逻辑跳跃",
+  missing_counterargument: "缺少反驳",
+};
+
 export default function ChatPanel({
   messages, onSend, onRollback, onAcceptSuggestion, onIgnoreSuggestion,
-  onClarifySelect, loading, collapsed, onToggle,
+  onClarifySelect, onAutoFix, loading, collapsed, onToggle,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -66,14 +77,48 @@ export default function ChatPanel({
       <div style={{ flex: 1, overflow: "auto", padding: "10px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
         {messages.length === 0 && (
           <div style={{ color: "var(--text-tertiary)", fontSize: 12, textAlign: "center", padding: 32 }}>
-            <p style={{ marginBottom: 8 }}>用自然语言描述你的写作想法</p>
-            <p style={{ fontSize: 11 }}>例如：“加一个关于XX的论据”</p>
+            <p style={{ marginBottom: 8 }}>描述你想写什么，AI 为你搭建架构</p>
+            <p style={{ fontSize: 11 }}>例如："我想论证远程办公虽然提高效率，但削弱了团队的创新能力"</p>
           </div>
         )}
 
-        {messages.map((m, i) => (
+        {messages.map((m) => (
           <div key={m.id}>
             <ChatMessage message={m} onRollback={() => onRollback(m.id)} />
+
+            {/* v4.0: Proactive suggestion on confirmation responses */}
+            {m.suggestion && !m.suggestionDismissed && m.type !== "suggestion" && (
+              <div style={{
+                marginTop: 6, padding: "8px 10px", borderRadius: 8,
+                background: "rgba(201,169,92,0.08)", border: "1px solid rgba(201,169,92,0.2)",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 6 }}>
+                  <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 600 }}>
+                    💡 {SUGGESTION_LABELS[m.suggestion.type] || "建议"}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 6 }}>
+                  {m.suggestion.message}
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {m.suggestion.auto_fix_available && (
+                    <button
+                      onClick={() => onAutoFix(m.id, m.suggestion!)}
+                      style={{ padding: "4px 10px", borderRadius: 6, border: "none", background: "var(--gold)", color: "#1a1a1a", fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                    >
+                      一键修复
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onIgnoreSuggestion(m.id)}
+                    style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)", fontSize: 11, cursor: "pointer" }}
+                  >
+                    忽略
+                  </button>
+                </div>
+              </div>
+            )}
+
             {m.type === "clarification" && m.options && (
               <ClarifyCard options={m.options} onSelect={onClarifySelect} />
             )}
@@ -81,7 +126,7 @@ export default function ChatPanel({
               <SuggestionCard
                 nodeCount={m.suggestionNodes.length}
                 onAccept={() => onAcceptSuggestion(m.suggestionNodes!, m.suggestionEdges || [])}
-                onIgnore={onIgnoreSuggestion}
+                onIgnore={() => onIgnoreSuggestion(m.id)}
               />
             )}
           </div>

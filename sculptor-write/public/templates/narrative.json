@@ -1,82 +1,107 @@
 {
-  "name": "叙事文",
-  "type": "narrative",
-  "defaultNodes": [
+  "name": "记叙文",
+  "description": "起承转合的叙事结构，适合故事创作和经历记录",
+  "icon": "📖",
+  "nodes": [
     {
-      "id": "n1",
-      "label": "故事核心",
+      "id": "nar_01",
       "type": "thesis",
-      "position": {
-        "x": 400,
-        "y": 30
-      },
-      "children": [
-        "n2",
-        "n3",
-        "n4"
-      ]
+      "title": "故事核心",
+      "summary": "故事的主题或核心情感，贯穿全文的叙事主线",
+      "parent": null,
+      "children": ["nar_02", "nar_03", "nar_04", "nar_05"],
+      "order": 1,
+      "isExpanded": true
     },
     {
-      "id": "n2",
-      "label": "开端",
+      "id": "nar_02",
+      "type": "hook",
+      "title": "开头引入",
+      "summary": "场景描写或悬念设置，迅速抓住读者注意力",
+      "parent": "nar_01",
+      "children": ["nar_06"],
+      "order": 2,
+      "isExpanded": true
+    },
+    {
+      "id": "nar_03",
       "type": "background",
-      "position": {
-        "x": 150,
-        "y": 130
-      },
-      "children": []
+      "title": "背景交代",
+      "summary": "时间、地点、人物等基本叙事要素",
+      "parent": "nar_01",
+      "children": [],
+      "order": 3,
+      "isExpanded": true
     },
     {
-      "id": "n3",
-      "label": "发展/冲突",
+      "id": "nar_04",
       "type": "argument",
-      "position": {
-        "x": 400,
-        "y": 130
-      },
-      "children": [
-        "n5"
-      ]
+      "title": "情节发展",
+      "summary": "事件推进，冲突升级，故事走向高潮",
+      "parent": "nar_01",
+      "children": ["nar_07", "nar_08"],
+      "order": 4,
+      "isExpanded": true
     },
     {
-      "id": "n4",
-      "label": "结局",
+      "id": "nar_05",
       "type": "argument",
-      "position": {
-        "x": 650,
-        "y": 130
-      },
-      "children": []
+      "title": "高潮转折",
+      "summary": "故事的关键转折点，情感达到顶点",
+      "parent": "nar_01",
+      "children": ["nar_09"],
+      "order": 5,
+      "isExpanded": true
     },
     {
-      "id": "n5",
-      "label": "关键意象",
+      "id": "nar_06",
       "type": "imagery",
-      "position": {
-        "x": 400,
-        "y": 230
-      },
-      "children": []
-    }
-  ],
-  "defaultEdges": [
-    {
-      "id": "e1",
-      "from": "n2",
-      "to": "n3",
-      "relation": "precedes"
+      "title": "氛围意象",
+      "summary": "通过感官细节营造故事氛围与基调",
+      "parent": "nar_02",
+      "children": [],
+      "order": 6,
+      "isExpanded": true
     },
     {
-      "id": "e2",
-      "from": "n3",
-      "to": "n4",
-      "relation": "precedes"
+      "id": "nar_07",
+      "type": "evidence",
+      "title": "细节描写",
+      "summary": "关键场景的细致刻画，增强画面感",
+      "parent": "nar_04",
+      "children": [],
+      "order": 7,
+      "isExpanded": true
     },
     {
-      "id": "e3",
-      "from": "n1",
-      "to": "n5",
-      "relation": "elaborates"
+      "id": "nar_08",
+      "type": "transition",
+      "title": "节奏过渡",
+      "summary": "场景之间的自然过渡，保持叙事流畅",
+      "parent": "nar_04",
+      "children": [],
+      "order": 8,
+      "isExpanded": true
+    },
+    {
+      "id": "nar_09",
+      "type": "conclusion",
+      "title": "结局收束",
+      "summary": "故事收尾，呼应开头，留下余韵",
+      "parent": "nar_05",
+      "children": ["nar_10"],
+      "order": 9,
+      "isExpanded": true
+    },
+    {
+      "id": "nar_10",
+      "type": "imagery",
+      "title": "余韵意象",
+      "summary": "结尾处的意象呼应，升华主题",
+      "parent": "nar_09",
+      "children": [],
+      "order": 10,
+      "isExpanded": true
     }
   ]
 }

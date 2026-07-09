@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import type { GhostTextState } from "@/types/editor";
 
-const PAUSE_DELAY_MS = 800;
+const PAUSE_DELAY_MS = 400;
+const FAST_PAUSE_MS = 200; // fast path when user acceptance rate is high
 const INTENSITY_LABELS: Record<string, string> = {
   "1": "轻续写",
   "2": "标准续写",
@@ -21,6 +22,10 @@ export function useGhostText(editor: Editor | null) {
 
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const loadingRef = useRef(false);
+  // Fast path: track accept/reject to adapt debounce
+  const acceptCount = useRef(0);
+  const rejectCount = useRef(0);
 
   const clearGhost = useCallback(() => {
     setGhostText({ text: "", visible: false, position: { from: 0, to: 0 } });
@@ -43,6 +48,10 @@ export function useGhostText(editor: Editor | null) {
         clearTimeout(pauseTimerRef.current);
       }
 
+      // Adaptive debounce: faster when user frequently accepts
+      const isFastPath = acceptCount.current > rejectCount.current * 2 && acceptCount.current >= 3;
+      const delay = isFastPath ? FAST_PAUSE_MS : PAUSE_DELAY_MS;
+
       pauseTimerRef.current = setTimeout(async () => {
         const docText = editor.getText();
         const lastChars = docText.slice(-300);
@@ -50,6 +59,7 @@ export function useGhostText(editor: Editor | null) {
 
         const controller = new AbortController();
         abortRef.current = controller;
+        loadingRef.current = true;
 
         try {
           const res = await fetch("/api/chat", {
@@ -102,8 +112,10 @@ export function useGhostText(editor: Editor | null) {
           if (!controller.signal.aborted) {
             clearGhost();
           }
+        } finally {
+          loadingRef.current = false;
         }
-      }, PAUSE_DELAY_MS);
+      }, delay);
     };
 
     editor.on("update", handleUpdate);
@@ -133,11 +145,13 @@ export function useGhostText(editor: Editor | null) {
         e.stopPropagation();
 
         editor.chain().focus().insertContent(ghostText.text).run();
+        acceptCount.current++;
         clearGhost();
       }
 
       if (e.key === "Escape" && ghostText.visible) {
         e.preventDefault();
+        rejectCount.current++;
         clearGhost();
       }
     };
@@ -149,5 +163,5 @@ export function useGhostText(editor: Editor | null) {
     };
   }, [editor, ghostText.visible, ghostText.text, clearGhost]);
 
-  return { ghostText, clearGhost };
+  return { ghostText, clearGhost, isGhostLoading: () => loadingRef.current };
 }

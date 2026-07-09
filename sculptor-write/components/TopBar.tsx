@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useUIStore } from "@/lib/store";
+import ThemeSwitcher from "@/components/shared/ThemeSwitcher";
 import type { SaveStatus } from "@/types/editor";
 
 interface TopBarProps {
@@ -53,13 +54,12 @@ export default function TopBar({
     <header
       style={{
         height: 48,
-        background: "#0d0d0d",
-        borderBottom: "1px solid #1a1a1a",
+        background: "var(--bg-secondary)",
+        borderBottom: "1px solid var(--border-light)",
         display: "flex",
         alignItems: "center",
         padding: "0 24px",
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        fontFamily: "var(--font-ui)",
         fontSize: 13,
         position: "relative",
         zIndex: 10,
@@ -81,16 +81,15 @@ export default function TopBar({
           }}
           style={{
             fontWeight: 600,
-            color: "#e0d8c8",
-            background: "#141414",
-            border: "1px solid #c4a565",
+            color: "var(--text-primary)",
+            background: "var(--bg-tertiary)",
+            border: "1px solid var(--gold)",
             borderRadius: 4,
             padding: "2px 8px",
             fontSize: 13,
             outline: "none",
             width: 200,
-            fontFamily:
-              '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            fontFamily: "var(--font-ui)",
           }}
         />
       ) : (
@@ -101,7 +100,7 @@ export default function TopBar({
           }}
           style={{
             fontWeight: 600,
-            color: "#e0d8c8",
+            color: "var(--text-primary)",
             marginRight: 24,
             cursor: "pointer",
             padding: "2px 8px",
@@ -110,7 +109,7 @@ export default function TopBar({
             transition: "border-color 0.15s ease",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "#2a2a2a";
+            e.currentTarget.style.borderColor = "var(--border)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.borderColor = "transparent";
@@ -127,7 +126,7 @@ export default function TopBar({
           display: "flex",
           alignItems: "center",
           gap: 6,
-          color: "#8a8578",
+          color: "var(--text-secondary)",
         }}
       >
         <span className={`status-dot ${statusClass}`} />
@@ -142,22 +141,21 @@ export default function TopBar({
             style={{
               padding: "4px 12px",
               borderRadius: 6,
-              border: "1px solid #2a2a2a",
+              border: "1px solid var(--border)",
               background: "transparent",
-              color: "#8a8578",
+              color: "var(--text-secondary)",
               fontSize: 12,
               cursor: "pointer",
-              fontFamily:
-                '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+              fontFamily: "var(--font-ui)",
               transition: "all 0.15s ease",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "#c4a565";
-              e.currentTarget.style.color = "#c4a565";
+              e.currentTarget.style.borderColor = "var(--gold)";
+              e.currentTarget.style.color = "var(--gold)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "#2a2a2a";
-              e.currentTarget.style.color = "#8a8578";
+              e.currentTarget.style.borderColor = "var(--border)";
+              e.currentTarget.style.color = "var(--text-secondary)";
             }}
           >
             Style Profile
@@ -165,22 +163,24 @@ export default function TopBar({
         )}
       </div>
 
+      {/* Theme Switcher */}
+      <ThemeSwitcher />
+
       {/* User avatar placeholder */}
       <div
         style={{
-          marginLeft: "auto",
+          marginLeft: 12,
           width: 28,
           height: 28,
           borderRadius: "50%",
-          background: "#3d3520",
-          color: "#c4a565",
+          background: "var(--bg-tertiary)",
+          color: "var(--gold)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           fontSize: 12,
           fontWeight: 600,
-          fontFamily:
-            '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          fontFamily: "var(--font-ui)",
         }}
       >
         U

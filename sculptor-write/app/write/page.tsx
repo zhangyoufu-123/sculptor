@@ -7,14 +7,15 @@ import EditorCanvas from "@/components/EditorCanvas";
 import AIBubble from "@/components/AIBubble";
 import SuggestionPreview from "@/components/SuggestionPreview";
 import CommandPalette from "@/components/CommandPalette";
-import EchoWall from "@/components/EchoWall";
+import EchoWall from "@/components/panels/EchoWall";
 import StyleSetup from "@/components/StyleSetup";
 import SocraticPanel from "@/components/panels/SocraticPanel";
+import StructureMap from "@/components/panels/StructureMap";
 import { useGhostText } from "@/hooks/useGhostText";
 import { useUIStore } from "@/lib/store";
 import type { Intent, SuggestionOption, StreamEvent, SaveStatus, StyleProfileData, MasterQuote, SearchResult } from "@/types/editor";
 import type { ArchitectNode } from "@/types/architect";
-import { BUBBLE_COLORS } from "@/types/architect";
+import { loadArchitecture } from "@/lib/local-store";
 
 const WRITE_TIMEOUT_MS = 45000;
 const AUTOSAVE_DELAY_MS = 2000;
@@ -42,11 +43,24 @@ export default function WritePage() {
   const clearSuggestions = useUIStore((s) => s.clearSuggestions);
   const setStyleProfile = useUIStore((s) => s.setStyleProfile);
 
-  const { ghostText } = useGhostText(editorRef.current);
+  const { ghostText, isGhostLoading } = useGhostText(editorRef.current);
 
-  // Load skeleton nodes from architect store (in v3.0, passed via URL or store)
+  // Load skeleton nodes from local store (architect → write bridge)
   const [skeletonNodes, setSkeletonNodes] = useState<ArchitectNode[]>([]);
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = loadArchitecture();
+    if (saved?.nodes?.length) {
+      // Convert ArchNode → ArchitectNode for StructureMap compat
+      setSkeletonNodes(saved.nodes.map((n) => ({
+        id: n.id, label: n.title, type: n.type,
+        position: { x: 0, y: 0 }, children: n.children,
+        notes: n.summary, targetWords: n.targetWords,
+        priority: n.priority,
+      })));
+    }
+  }, []);
 
   const handleEditorReady = useCallback((editor: Editor) => { editorRef.current = editor; }, []);
 
@@ -141,25 +155,15 @@ export default function WritePage() {
                     <p style={{ marginTop: 12, fontSize: 11 }}>AI 将基于已写内容自动生成建议架构</p>
                   </div>
                 ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    {skeletonNodes.map(n => (
-                      <div
-                        key={n.id}
-                        onClick={() => setActiveNodeId(n.id)}
-                        style={{
-                          padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12,
-                          background: activeNodeId === n.id ? "var(--bg-tertiary)" : "transparent",
-                          border: activeNodeId === n.id ? `1px solid ${BUBBLE_COLORS[n.type]}` : "1px solid transparent",
-                          color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6,
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: BUBBLE_COLORS[n.type], flexShrink: 0 }} />
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.label}</span>
-                        {n.targetWords && <span style={{ fontSize: 9, color: "var(--text-tertiary)", marginLeft: "auto" }}>{n.targetWords}字</span>}
-                      </div>
-                    ))}
-                  </div>
+                  <StructureMap
+                    nodes={skeletonNodes}
+                    activeNodeId={activeNodeId}
+                    onSelectNode={setActiveNodeId}
+                    onAIExpand={(nodeId, label) => {
+                      // Redirect to architect page with pre-filled expand command
+                      window.location.href = `/architect?action=expand&node=${encodeURIComponent(label)}`;
+                    }}
+                  />
                 )}
               </div>
             </>
@@ -173,7 +177,7 @@ export default function WritePage() {
         {/* CENTER: Editor */}
         <main style={{ flex: 1, display: "flex", justifyContent: "center", overflow: "auto", position: "relative" }}>
           <div style={{ width: "100%", maxWidth: "680px" }}>
-            <EditorCanvas onEditorReady={handleEditorReady} onBlankDoubleClick={() => setCommandPaletteOpen(true)} ghostText={ghostText.text} onGhostAccept={handleGhostAccept} onGhostReject={handleGhostReject} />
+            <EditorCanvas onEditorReady={handleEditorReady} onBlankDoubleClick={() => setCommandPaletteOpen(true)} ghostText={ghostText.text} isGhostLoading={isGhostLoading} onGhostAccept={handleGhostAccept} onGhostReject={handleGhostReject} />
           </div>
           <AIBubble onIntent={handleIntent} />
           <SuggestionPreview editor={editorRef.current} intent={currentIntent} onDone={() => triggerAutosave()} />
@@ -191,7 +195,12 @@ export default function WritePage() {
                 </div>
               </div>
               <div style={{ flex: 1, overflow: "auto" }}>
-                <EchoWall analysisText={echoWallAnalysis} analysisLoading={analysisLoading} inspiration={echoWallInspiration} inspirationLoading={false} masterQuotes={[]} searchResults={[]} searchLoading={false} onAdopt={(t) => { editorRef.current?.chain().focus().insertContent(" " + t).run(); }} onStyleSetupClick={() => setStyleOpen(true)} onSearch={async () => {}} />
+                <EchoWall
+                  nodes={skeletonNodes}
+                  activeNodeId={activeNodeId}
+                  editorWordCount={editorRef.current?.getText().length || 0}
+                  onNavigateNode={(id) => setActiveNodeId(id)}
+                />
               </div>
             </>
           ) : (
@@ -203,7 +212,7 @@ export default function WritePage() {
       </div>
 
       <StyleSetup isOpen={styleOpen} onClose={() => setStyleOpen(false)} onProfileSaved={handleStyleSaved} />
-      <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onCommand={(i) => handleIntent(i)} onCustomCommand={(t) => handleIntent("custom", t)} />
+      <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onExecute={(intent, param) => { if (intent === "custom") { handleIntent("custom" as any, param); } else { handleIntent(intent as any); } }} />
       <SocraticPanel isOpen={socraticOpen} onClose={() => setSocraticOpen(false)} context={editorRef.current?.getText().slice(-500) || ""} />
     </div>
   );

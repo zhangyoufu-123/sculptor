@@ -14,12 +14,13 @@ interface ArchitectToolbarProps {
   onFit: () => void;
   connectMode: boolean;
   canDelete: boolean;
+  canExpand: boolean;
 }
 
 export default function ArchitectToolbar({
   onAddNode, onConnectMode, onDelete, onAIPanel, onAIExpand,
   onReview, onTemplates, onImport, onZoomIn, onZoomOut, onFit,
-  connectMode, canDelete,
+  connectMode, canDelete, canExpand,
 }: ArchitectToolbarProps) {
   const btn = (label: string, icon: string, onClick: () => void, active = false, disabled = false) => (
     <button
@@ -59,7 +60,7 @@ export default function ArchitectToolbar({
       {sep}
       {/* AI */}
       {btn("AI对话", "💬", onAIPanel)}
-      {btn("AI补充", "🧠", onAIExpand, false, !canDelete)}
+      {btn("AI补充", "🧠", onAIExpand, false, !canExpand)}
       {btn("逻辑审查", "🔍", onReview)}
       {sep}
       {/* Templates */}

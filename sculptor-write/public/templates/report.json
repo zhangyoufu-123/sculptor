@@ -1,105 +1,107 @@
 {
   "name": "报告",
-  "type": "report",
-  "defaultNodes": [
+  "description": "摘要—方法—发现—结论的专业报告结构，适合调研与工作总结",
+  "icon": "📊",
+  "nodes": [
     {
-      "id": "n1",
-      "label": "报告摘要",
+      "id": "rep_01",
       "type": "thesis",
-      "position": {
-        "x": 400,
-        "y": 30
-      },
-      "children": [
-        "n2",
-        "n3",
-        "n4",
-        "n5"
-      ]
+      "title": "报告摘要",
+      "summary": "概括研究目的、方法、主要发现与结论，200字以内",
+      "parent": null,
+      "children": ["rep_02", "rep_03", "rep_04", "rep_05"],
+      "order": 1,
+      "isExpanded": true
     },
     {
-      "id": "n2",
-      "label": "背景",
+      "id": "rep_02",
       "type": "background",
-      "position": {
-        "x": 100,
-        "y": 130
-      },
-      "children": []
+      "title": "研究背景",
+      "summary": "阐述研究动机、问题现状及研究意义",
+      "parent": "rep_01",
+      "children": [],
+      "order": 2,
+      "isExpanded": true
     },
     {
-      "id": "n3",
-      "label": "方法",
+      "id": "rep_03",
       "type": "argument",
-      "position": {
-        "x": 300,
-        "y": 130
-      },
-      "children": []
+      "title": "研究方法",
+      "summary": "描述数据来源、分析框架与实施步骤",
+      "parent": "rep_01",
+      "children": ["rep_06"],
+      "order": 3,
+      "isExpanded": true
     },
     {
-      "id": "n4",
-      "label": "发现",
-      "type": "evidence",
-      "position": {
-        "x": 500,
-        "y": 130
-      },
-      "children": [
-        "n6"
-      ]
-    },
-    {
-      "id": "n5",
-      "label": "结论",
+      "id": "rep_04",
       "type": "argument",
-      "position": {
-        "x": 700,
-        "y": 130
-      },
-      "children": []
+      "title": "核心发现",
+      "summary": "呈现关键数据与分析结果，分点阐述",
+      "parent": "rep_01",
+      "children": ["rep_07", "rep_08"],
+      "order": 4,
+      "isExpanded": true
     },
     {
-      "id": "n6",
-      "label": "数据支撑",
+      "id": "rep_05",
+      "type": "argument",
+      "title": "讨论分析",
+      "summary": "解读发现的意义、局限性及与既有研究的关联",
+      "parent": "rep_01",
+      "children": ["rep_09"],
+      "order": 5,
+      "isExpanded": true
+    },
+    {
+      "id": "rep_06",
       "type": "evidence",
-      "position": {
-        "x": 500,
-        "y": 230
-      },
-      "children": []
-    }
-  ],
-  "defaultEdges": [
-    {
-      "id": "e1",
-      "from": "n1",
-      "to": "n2",
-      "relation": "precedes"
+      "title": "方法细节",
+      "summary": "具体的数据收集工具、样本量及分析方法",
+      "parent": "rep_03",
+      "children": [],
+      "order": 6,
+      "isExpanded": true
     },
     {
-      "id": "e2",
-      "from": "n2",
-      "to": "n3",
-      "relation": "precedes"
+      "id": "rep_07",
+      "type": "evidence",
+      "title": "数据图表",
+      "summary": "关键数据的可视化呈现（表格/图表）",
+      "parent": "rep_04",
+      "children": [],
+      "order": 7,
+      "isExpanded": true
     },
     {
-      "id": "e3",
-      "from": "n3",
-      "to": "n4",
-      "relation": "precedes"
+      "id": "rep_08",
+      "type": "evidence",
+      "title": "案例分析",
+      "summary": "选取典型个案深入分析，佐证发现",
+      "parent": "rep_04",
+      "children": [],
+      "order": 8,
+      "isExpanded": true
     },
     {
-      "id": "e4",
-      "from": "n4",
-      "to": "n5",
-      "relation": "precedes"
+      "id": "rep_09",
+      "type": "counterargument",
+      "title": "局限性审视",
+      "summary": "诚实评估研究局限与未覆盖的视角",
+      "parent": "rep_05",
+      "children": ["rep_10"],
+      "order": 9,
+      "isExpanded": true
     },
     {
-      "id": "e5",
-      "from": "n4",
-      "to": "n6",
-      "relation": "exemplifies"
+      "id": "rep_10",
+      "type": "conclusion",
+      "title": "结论与建议",
+      "summary": "提炼核心结论，提出可操作的建议与后续方向",
+      "parent": "rep_09",
+      "children": [],
+      "order": 10,
+      "isExpanded": true
     }
   ]
 }

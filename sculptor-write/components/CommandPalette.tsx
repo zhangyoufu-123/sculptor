@@ -1,93 +1,51 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { Intent } from "@/types/editor";
+import { useState, useEffect, useRef, useCallback } from "react";
+
+type PaletteIntent =
+  | "continue"
+  | "rewrite"
+  | "style_experiment"
+  | "search_material"
+  | "generate_outline"
+  | "more_concise"
+  | "more_flowery"
+  | "more_humorous";
 
 interface Command {
-  id: Intent;
+  id: PaletteIntent;
   label: string;
-  icon: string;
   description: string;
-  shortcut: string;
+  icon: string;
 }
 
 const COMMANDS: Command[] = [
-  {
-    id: "rewrite",
-    label: "Rewrite",
-    icon: "✏️",
-    description: "Rewrite selection in a different style",
-    shortcut: "⌘R",
-  },
-  {
-    id: "continue",
-    label: "Continue",
-    icon: "➡️",
-    description: "Continue writing from the cursor",
-    shortcut: "⌘L",
-  },
-  {
-    id: "explain",
-    label: "Explain",
-    icon: "💡",
-    description: "Explain the selected text simply",
-    shortcut: "⌘E",
-  },
-  {
-    id: "shorter",
-    label: "Shorter",
-    icon: "📏",
-    description: "Make the text more concise",
-    shortcut: "⌘−",
-  },
-  {
-    id: "longer",
-    label: "Longer",
-    icon: "📐",
-    description: "Expand with more detail",
-    shortcut: "⌘+",
-  },
-  {
-    id: "more_formal",
-    label: "More Formal",
-    icon: "🎩",
-    description: "Elevate the tone to formal/professional",
-    shortcut: "",
-  },
-  {
-    id: "more_casual",
-    label: "More Casual",
-    icon: "🩳",
-    description: "Make the tone conversational",
-    shortcut: "",
-  },
-  {
-    id: "translate_en",
-    label: "Translate to English",
-    icon: "🌐",
-    description: "Translate or improve English clarity",
-    shortcut: "",
-  },
+  { id: "continue", label: "继续", description: "AI 续写", icon: "➡️" },
+  { id: "rewrite", label: "改写", description: "改写选中内容", icon: "✏️" },
+  { id: "style_experiment", label: "风格", description: "风格实验", icon: "🎨" },
+  { id: "search_material", label: "论据", description: "查找论据", icon: "📚" },
+  { id: "generate_outline", label: "大纲", description: "生成大纲", icon: "📋" },
+  { id: "more_concise", label: "简洁", description: "更简洁", icon: "📏" },
+  { id: "more_flowery", label: "华丽", description: "更华丽", icon: "🌸" },
+  { id: "more_humorous", label: "幽默", description: "更幽默", icon: "😄" },
 ];
 
 interface CommandPaletteProps {
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
-  onCommand: (intent: Intent) => void;
-  onCustomCommand?: (text: string) => void;
+  onExecute: (intent: string, param?: string) => void;
 }
 
 export default function CommandPalette({
-  isOpen,
+  open,
   onClose,
-  onCommand,
-  onCustomCommand,
+  onExecute,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const filteredCommands = COMMANDS.filter((cmd) => {
+  const filtered = COMMANDS.filter((cmd) => {
     if (!query.trim()) return true;
     const q = query.toLowerCase();
     return (
@@ -97,52 +55,44 @@ export default function CommandPalette({
     );
   });
 
-  // Show "custom intent" option when query doesn't match any command
-  const showCustomOption = query.trim().length > 0 && filteredCommands.length === 0;
-
-  // Reset state when opening
+  // Reset on open
   useEffect(() => {
-    if (isOpen) {
+    if (open) {
       setQuery("");
       setSelectedIndex(0);
-      // Focus input on next frame after render
       requestAnimationFrame(() => {
         inputRef.current?.focus();
       });
     }
-  }, [isOpen]);
+  }, [open]);
 
-  // Clamp selected index when filtered results change
+  // Clamp index
   useEffect(() => {
-    const maxIndex = filteredCommands.length - 1 + (showCustomOption ? 1 : 0);
+    const maxIndex = Math.max(0, filtered.length - 1);
     if (selectedIndex > maxIndex) {
-      setSelectedIndex(Math.max(0, maxIndex));
+      setSelectedIndex(maxIndex);
     }
-  }, [filteredCommands.length, selectedIndex, showCustomOption]);
+  }, [filtered.length, selectedIndex]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      const totalItems = filteredCommands.length + (showCustomOption ? 1 : 0);
-
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
-          setSelectedIndex((prev) => (prev < totalItems - 1 ? prev + 1 : 0));
+          setSelectedIndex((prev) =>
+            prev < filtered.length - 1 ? prev + 1 : 0
+          );
           break;
         case "ArrowUp":
           e.preventDefault();
-          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : totalItems - 1));
+          setSelectedIndex((prev) =>
+            prev > 0 ? prev - 1 : filtered.length - 1
+          );
           break;
         case "Enter":
           e.preventDefault();
-          if (showCustomOption && selectedIndex === filteredCommands.length) {
-            // User selected custom free-text option
-            if (onCustomCommand) {
-              onCustomCommand(query.trim());
-            }
-            onClose();
-          } else if (filteredCommands[selectedIndex]) {
-            onCommand(filteredCommands[selectedIndex].id);
+          if (filtered[selectedIndex]) {
+            onExecute(filtered[selectedIndex].id);
             onClose();
           }
           break;
@@ -152,18 +102,10 @@ export default function CommandPalette({
           break;
       }
     },
-    [filteredCommands, selectedIndex, onCommand, onClose, showCustomOption, query, onCustomCommand]
+    [filtered, selectedIndex, onExecute, onClose]
   );
 
-  const handleSelect = useCallback(
-    (intent: Intent) => {
-      onCommand(intent);
-      onClose();
-    },
-    [onCommand, onClose]
-  );
-
-  if (!isOpen) return null;
+  if (!open) return null;
 
   return (
     <div
@@ -174,23 +116,23 @@ export default function CommandPalette({
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
-        paddingTop: "15vh",
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        paddingTop: "18vh",
+        backgroundColor: "rgba(0, 0, 0, 0.6)",
         backdropFilter: "blur(4px)",
       }}
       onClick={onClose}
     >
       <div
         style={{
-          width: 560,
-          maxHeight: "60vh",
-          backgroundColor: "#1a1a1a",
-          border: "1px solid #2a2a2a",
+          width: 520,
+          maxHeight: "55vh",
+          backgroundColor: "var(--bg-tertiary)",
+          border: "1px solid var(--border)",
           borderRadius: 12,
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          boxShadow: "0 16px 48px rgba(0,0,0,0.5)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -198,13 +140,13 @@ export default function CommandPalette({
         <div
           style={{
             padding: "14px 16px",
-            borderBottom: "1px solid #2a2a2a",
+            borderBottom: "1px solid var(--border-light)",
             display: "flex",
             alignItems: "center",
             gap: 10,
           }}
         >
-          <span style={{ fontSize: 18, opacity: 0.6 }}>🔍</span>
+          <span style={{ fontSize: 16, opacity: 0.5 }}>🔍</span>
           <input
             ref={inputRef}
             type="text"
@@ -214,28 +156,30 @@ export default function CommandPalette({
               setSelectedIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Type a command or natural language instruction..."
+            placeholder="输入指令..."
             style={{
               flex: 1,
               background: "transparent",
               border: "none",
               outline: "none",
-              color: "#e0d8c8",
+              color: "var(--text-primary)",
               fontSize: 15,
               fontFamily: "inherit",
             }}
+            autoComplete="off"
           />
-          <span
+          <kbd
             style={{
               fontSize: 11,
-              color: "#888",
+              color: "var(--text-secondary)",
               padding: "2px 6px",
-              border: "1px solid #444",
+              border: "1px solid var(--border)",
               borderRadius: 4,
+              fontFamily: "inherit",
             }}
           >
             esc
-          </span>
+          </kbd>
         </div>
 
         {/* Command list */}
@@ -243,163 +187,90 @@ export default function CommandPalette({
           style={{
             flex: 1,
             overflowY: "auto",
-            padding: "8px 0",
+            padding: "6px 0",
           }}
         >
-          {!showCustomOption && filteredCommands.length === 0 && (
+          {filtered.length === 0 && (
             <div
               style={{
-                padding: "32px 16px",
+                padding: "40px 16px",
                 textAlign: "center",
-                color: "#666",
+                color: "var(--text-secondary)",
                 fontSize: 14,
               }}
             >
-              No matching commands
+              无匹配指令
             </div>
           )}
-          {filteredCommands.map((cmd, i) => (
+          {filtered.map((cmd, i) => (
             <div
               key={cmd.id}
-              onClick={() => handleSelect(cmd.id)}
+              onClick={() => {
+                onExecute(cmd.id);
+                onClose();
+              }}
+              onMouseEnter={() => setSelectedIndex(i)}
               style={{
                 display: "flex",
                 alignItems: "center",
                 padding: "10px 16px",
                 cursor: "pointer",
                 backgroundColor:
-                  i === selectedIndex ? "#2a2a2a" : "transparent",
+                  i === selectedIndex ? "var(--bg-elevated)" : "transparent",
                 borderLeft:
                   i === selectedIndex
-                    ? "2px solid #c4a565"
+                    ? "2px solid var(--gold)"
                     : "2px solid transparent",
                 transition: "background-color 0.1s",
               }}
-              onMouseEnter={() => setSelectedIndex(i)}
             >
-              {/* Icon */}
-              <span style={{ fontSize: 18, marginRight: 12, flexShrink: 0 }}>
+              <span
+                style={{
+                  fontSize: 18,
+                  marginRight: 12,
+                  flexShrink: 0,
+                }}
+              >
                 {cmd.icon}
               </span>
-
-              {/* Label + description */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
-                    color: "#e0d8c8",
+                    color: "var(--text-primary)",
                     fontSize: 14,
-                    fontWeight: 500,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
+                    fontWeight: 600,
                   }}
                 >
                   {cmd.label}
                 </div>
                 <div
                   style={{
-                    color: "#888",
+                    color: "var(--text-secondary)",
                     fontSize: 12,
                     marginTop: 1,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
                   }}
                 >
                   {cmd.description}
                 </div>
               </div>
-
-              {/* Shortcut badge */}
-              {cmd.shortcut && (
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: "#888",
-                    padding: "2px 6px",
-                    border: "1px solid #444",
-                    borderRadius: 4,
-                    flexShrink: 0,
-                    marginLeft: 12,
-                  }}
-                >
-                  {cmd.shortcut}
-                </span>
-              )}
             </div>
           ))}
-
-          {/* Custom free-text option */}
-          {showCustomOption && (
-            <div
-              onClick={() => {
-                if (onCustomCommand) {
-                  onCustomCommand(query.trim());
-                }
-                onClose();
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                padding: "10px 16px",
-                cursor: "pointer",
-                backgroundColor:
-                  selectedIndex === filteredCommands.length
-                    ? "#2a2a2a"
-                    : "transparent",
-                borderLeft:
-                  selectedIndex === filteredCommands.length
-                    ? "2px solid #c4a565"
-                    : "2px solid transparent",
-                transition: "background-color 0.1s",
-              }}
-              onMouseEnter={() => setSelectedIndex(filteredCommands.length)}
-            >
-              <span style={{ fontSize: 18, marginRight: 12, flexShrink: 0 }}>
-                ✨
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    color: "#c4a565",
-                    fontSize: 14,
-                    fontWeight: 500,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  Send: &ldquo;{query.trim()}&rdquo;
-                </div>
-                <div
-                  style={{
-                    color: "#888",
-                    fontSize: 12,
-                    marginTop: 1,
-                  }}
-                >
-                  Send as custom AI instruction
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Footer hint */}
+        {/* Footer */}
         <div
           style={{
             padding: "8px 16px",
-            borderTop: "1px solid #2a2a2a",
+            borderTop: "1px solid var(--border-light)",
             display: "flex",
-            gap: 14,
+            gap: 16,
             fontSize: 11,
-            color: "#666",
+            color: "var(--text-secondary)",
           }}
         >
-          <span>↑↓ navigate</span>
-          <span>↵ select</span>
-          <span>esc close</span>
-          <span>⌘J open</span>
+          <span>↑↓ 导航</span>
+          <span>↵ 选择</span>
+          <span>esc 关闭</span>
         </div>
       </div>
     </div>

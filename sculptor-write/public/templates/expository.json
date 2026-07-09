@@ -1,88 +1,107 @@
 {
   "name": "说明文",
-  "type": "expository",
-  "defaultNodes": [
+  "description": "由浅入深的说明结构，适合科普、教程与知识传递",
+  "icon": "🔬",
+  "nodes": [
     {
-      "id": "n1",
-      "label": "说明主题",
+      "id": "exp_01",
       "type": "thesis",
-      "position": {
-        "x": 400,
-        "y": 30
-      },
-      "children": [
-        "n2",
-        "n3",
-        "n4"
-      ]
+      "title": "说明主题",
+      "summary": "明确被说明对象的定义与范围",
+      "parent": null,
+      "children": ["exp_02", "exp_03", "exp_04", "exp_05"],
+      "order": 1,
+      "isExpanded": true
     },
     {
-      "id": "n2",
-      "label": "背景介绍",
+      "id": "exp_02",
+      "type": "hook",
+      "title": "现象引入",
+      "summary": "以常见现象或问题切入，引发读者好奇",
+      "parent": "exp_01",
+      "children": [],
+      "order": 2,
+      "isExpanded": true
+    },
+    {
+      "id": "exp_03",
       "type": "background",
-      "position": {
-        "x": 150,
-        "y": 130
-      },
-      "children": []
+      "title": "背景概述",
+      "summary": "介绍相关历史、起源或基本概念",
+      "parent": "exp_01",
+      "children": [],
+      "order": 3,
+      "isExpanded": true
     },
     {
-      "id": "n3",
-      "label": "核心机制",
+      "id": "exp_04",
       "type": "argument",
-      "position": {
-        "x": 400,
-        "y": 130
-      },
-      "children": [
-        "n5"
-      ]
+      "title": "核心原理",
+      "summary": "深入阐述事物的工作原理或内在逻辑",
+      "parent": "exp_01",
+      "children": ["exp_06", "exp_07"],
+      "order": 4,
+      "isExpanded": true
     },
     {
-      "id": "n4",
-      "label": "应用场景",
+      "id": "exp_05",
+      "type": "argument",
+      "title": "分类解析",
+      "summary": "将对象按不同维度进行分类说明",
+      "parent": "exp_01",
+      "children": ["exp_08"],
+      "order": 5,
+      "isExpanded": true
+    },
+    {
+      "id": "exp_06",
       "type": "evidence",
-      "position": {
-        "x": 650,
-        "y": 130
-      },
-      "children": []
+      "title": "图解/示例",
+      "summary": "用具体示例或类比帮助理解抽象概念",
+      "parent": "exp_04",
+      "children": [],
+      "order": 6,
+      "isExpanded": true
     },
     {
-      "id": "n5",
-      "label": "具体案例",
+      "id": "exp_07",
       "type": "evidence",
-      "position": {
-        "x": 400,
-        "y": 230
-      },
-      "children": []
-    }
-  ],
-  "defaultEdges": [
-    {
-      "id": "e1",
-      "from": "n1",
-      "to": "n2",
-      "relation": "elaborates"
+      "title": "数据佐证",
+      "summary": "提供科学研究或统计数据支持",
+      "parent": "exp_04",
+      "children": [],
+      "order": 7,
+      "isExpanded": true
     },
     {
-      "id": "e2",
-      "from": "n1",
-      "to": "n3",
-      "relation": "elaborates"
+      "id": "exp_08",
+      "type": "evidence",
+      "title": "应用实例",
+      "summary": "展示说明对象在现实中的应用场景",
+      "parent": "exp_05",
+      "children": [],
+      "order": 8,
+      "isExpanded": true
     },
     {
-      "id": "e3",
-      "from": "n1",
-      "to": "n4",
-      "relation": "elaborates"
+      "id": "exp_09",
+      "type": "transition",
+      "title": "常见误区",
+      "summary": "澄清常见的理解偏差或错误认知",
+      "parent": "exp_01",
+      "children": ["exp_10"],
+      "order": 9,
+      "isExpanded": true
     },
     {
-      "id": "e4",
-      "from": "n3",
-      "to": "n5",
-      "relation": "exemplifies"
+      "id": "exp_10",
+      "type": "conclusion",
+      "title": "总结展望",
+      "summary": "归纳要点，展望发展趋势或学习路径",
+      "parent": "exp_09",
+      "children": [],
+      "order": 10,
+      "isExpanded": true
     }
   ]
 }

@@ -1,132 +1,290 @@
 "use client";
 
-import { useUIStore } from "@/lib/store";
-import type { Intent } from "@/types/editor";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
-interface AIBubbleProps {
-  onIntent: (intent: Intent, customText?: string) => void;
+export interface AIBubbleProps {
+  position?: { x: number; y: number } | null;
+  visible?: boolean;
+  selectedText?: string;
+  onContinue?: () => void;
+  onRewrite?: () => void;
+  onDiagnose?: () => void;
+  onCustom?: (instruction: string) => void;
+  onDismiss?: () => void;
+  onIntent?: (...args: any[]) => Promise<void>;
 }
 
-export default function AIBubble({ onIntent }: AIBubbleProps) {
-  const writingState = useUIStore((s) => s.writingState);
-  const selectionRect = useUIStore((s) => s.selectionRect);
-  const clearSuggestions = useUIStore((s) => s.clearSuggestions);
-  const [customMode, setCustomMode] = useState(false);
+export default function AIBubble({
+  position = null,
+  visible = false,
+  selectedText = "",
+  onContinue = () => {},
+  onRewrite = () => {},
+  onDiagnose = () => {},
+  onCustom = (_instruction: string) => {},
+  onDismiss = () => {},
+  onIntent,
+}: AIBubbleProps) {
+  const [expanded, setExpanded] = useState(false);
   const [customInput, setCustomInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
 
-  // Reset custom mode when bubble hides
+  // Close on Escape
   useEffect(() => {
-    if (writingState !== "selected" && writingState !== "bubble_open") {
-      setCustomMode(false);
+    if (!visible) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (expanded) {
+          setExpanded(false);
+          setCustomInput("");
+        } else {
+          onDismiss();
+        }
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [visible, expanded, onDismiss]);
+
+  // Click outside to close
+  useEffect(() => {
+    if (!expanded) return;
+    const handler = (e: MouseEvent) => {
+      if (bubbleRef.current && !bubbleRef.current.contains(e.target as Node)) {
+        setExpanded(false);
+        setCustomInput("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [expanded]);
+
+  // Focus input when custom mode activates
+  useEffect(() => {
+    if (expanded && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [expanded]);
+
+  // Reset when dismissed
+  useEffect(() => {
+    if (!visible) {
+      setExpanded(false);
       setCustomInput("");
     }
-  }, [writingState]);
+  }, [visible]);
 
-  // Focus input when entering custom mode
-  useEffect(() => {
-    if (customMode) {
-      inputRef.current?.focus();
-    }
-  }, [customMode]);
+  const handleAction = useCallback(
+    (action: () => void) => {
+      action();
+      setExpanded(false);
+    },
+    []
+  );
 
-  if (writingState !== "selected" && writingState !== "bubble_open") {
-    return null;
-  }
-
-  if (!selectionRect) return null;
-
-  const handleClick = (intent: Intent) => {
-    onIntent(intent);
-  };
-
-  const handleCustomSubmit = () => {
+  const handleCustomSubmit = useCallback(() => {
     const trimmed = customInput.trim();
     if (!trimmed) return;
-    onIntent("custom", trimmed);
-    setCustomMode(false);
+    onCustom(trimmed);
     setCustomInput("");
-  };
+    setExpanded(false);
+  }, [customInput, onCustom]);
 
-  const handleCustomKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleCustomSubmit();
-    }
-    if (e.key === "Escape") {
-      setCustomMode(false);
-      setCustomInput("");
-    }
-  };
+  const handleCustomKey = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleCustomSubmit();
+      }
+    },
+    [handleCustomSubmit]
+  );
+
+  if (!visible || !position) return null;
+
+  const bubbleLeft = Math.max(8, position.x);
+  const bubbleTop = Math.max(8, position.y - 52);
 
   return (
     <div
-      className="ai-bubble"
+      ref={bubbleRef}
       style={{
         position: "fixed",
-        left: Math.max(8, selectionRect.left - 80),
-        top: Math.max(8, selectionRect.top - 48),
+        left: bubbleLeft,
+        top: bubbleTop,
+        zIndex: 9999,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        animation: "fadeIn 0.15s ease",
       }}
     >
-      {customMode ? (
+      {/* Floating gold circle */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        onMouseEnter={() => setExpanded(true)}
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          border: "1.5px solid var(--gold)",
+          background: "var(--bg-elevated)",
+          color: "var(--gold)",
+          fontSize: 16,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 2px 16px rgba(201,169,92,0.35)",
+          transition: "transform 0.15s ease, box-shadow 0.15s ease",
+          transform: expanded ? "scale(1.1)" : "scale(1)",
+        }}
+        title="AI 助手"
+        aria-label="AI 助手"
+      >
+        ✨
+      </button>
+
+      {/* Expanded panel */}
+      {expanded && (
         <div
           style={{
+            marginTop: 8,
+            width: 200,
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--gold)",
+            borderRadius: 12,
+            padding: "8px",
             display: "flex",
-            alignItems: "center",
+            flexDirection: "column",
             gap: 4,
-            padding: "2px 4px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+            animation: "fadeIn 0.12s ease",
           }}
         >
-          <input
-            ref={inputRef}
-            value={customInput}
-            onChange={(e) => setCustomInput(e.target.value)}
-            onKeyDown={handleCustomKeyDown}
-            placeholder="说点什么..."
+          {/* Action buttons row */}
+          <div
             style={{
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: "#e0d8c8",
-              fontSize: 13,
-              fontFamily:
-                '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-              width: 200,
-              padding: "4px 6px",
+              display: "flex",
+              gap: 4,
+            }}
+          >
+            <ActionButton
+              label="写下去"
+              icon="→"
+              onClick={() => handleAction(onContinue)}
+            />
+            <ActionButton
+              label="换个说法"
+              icon="✎"
+              onClick={() => handleAction(onRewrite)}
+            />
+            <ActionButton
+              label="这里有点怪"
+              icon="💡"
+              onClick={() => handleAction(onDiagnose)}
+            />
+          </div>
+
+          {/* Divider */}
+          <div
+            style={{
+              height: 1,
+              background: "var(--border-light)",
+              margin: "2px 0",
             }}
           />
-          <button
-            onClick={handleCustomSubmit}
+
+          {/* Custom input */}
+          <div
             style={{
-              padding: "4px 8px",
-              borderRadius: 4,
-              border: "none",
-              background: "#c4a565",
-              color: "#0d0d0d",
-              fontSize: 12,
-              cursor: "pointer",
-              fontFamily: "inherit",
+              display: "flex",
+              gap: 4,
+              alignItems: "center",
             }}
           >
-            →发送
-          </button>
+            <input
+              ref={inputRef}
+              value={customInput}
+              onChange={(e) => setCustomInput(e.target.value)}
+              onKeyDown={handleCustomKey}
+              placeholder="自定义指令..."
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                color: "var(--text-primary)",
+                fontSize: 13,
+                padding: "4px 6px",
+                fontFamily: "inherit",
+              }}
+            />
+            <button
+              onClick={handleCustomSubmit}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 6,
+                border: "none",
+                background: "var(--gold)",
+                color: "#0a0a0a",
+                fontSize: 14,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                flexShrink: 0,
+              }}
+              title="发送"
+              aria-label="发送自定义指令"
+            >
+              →
+            </button>
+          </div>
         </div>
-      ) : (
-        <>
-          <button onClick={() => handleClick("rewrite")}>改写</button>
-          <button onClick={() => handleClick("continue")}>续写</button>
-          <button onClick={() => handleClick("explain")}>解释</button>
-          <button
-            onClick={() => setCustomMode(true)}
-            style={{
-              color: "#c4a565",
-            }}
-          >
-            自定义
-          </button>
-        </>
       )}
     </div>
+  );
+}
+
+function ActionButton({
+  label,
+  icon,
+  onClick,
+}: {
+  label: string;
+  icon: string;
+  onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 2,
+        padding: "6px 4px",
+        borderRadius: 8,
+        border: "none",
+        background: hovered ? "var(--bg-tertiary)" : "transparent",
+        color: "var(--text-primary)",
+        fontSize: 11,
+        cursor: "pointer",
+        transition: "background 0.1s",
+        fontFamily: "inherit",
+      }}
+    >
+      <span style={{ fontSize: 15 }}>{icon}</span>
+      <span>{label}</span>
+    </button>
   );
 }

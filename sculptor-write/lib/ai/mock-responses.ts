@@ -81,3 +81,41 @@ export const MOCK_PIPELINE_RESPONSE = (intent: string) => ({
     },
   ],
 });
+
+// MOCK: Architect chat response
+export const MOCK_ARCHITECT_CHAT_RESPONSE = {
+  type: "confirmation",
+  message: "已在论点下添加论据节点",
+  nodes: [
+    { id: "n1", label: "城市热岛的记忆", type: "thesis", position: { x: 400, y: 30 }, children: ["n2", "n3", "n4"] },
+    { id: "n2", label: "夏夜的引入", type: "background", position: { x: 200, y: 140 }, children: [] },
+    { id: "n3", label: "热浪中的城市", type: "argument", position: { x: 400, y: 140 }, children: ["n5", "n100"] },
+    { id: "n4", label: "记忆的清凉", type: "argument", position: { x: 600, y: 140 }, children: [] },
+    { id: "n5", label: "柏油路面的反光", type: "imagery", position: { x: 300, y: 250 }, children: [] },
+    { id: "n100", label: "空调外机的轰鸣", type: "evidence", position: { x: 500, y: 250 }, children: [] },
+  ],
+  edges: [
+    { id: "e1", from: "n2", to: "n3", relation: "precedes" },
+    { id: "e2", from: "n3", to: "n4", relation: "precedes" },
+    { id: "e3", from: "n1", to: "n5", relation: "elaborates" },
+    { id: "e4", from: "n1", to: "n100", relation: "elaborates" },
+  ],
+};
+
+// MOCK: Architect auto-fix response
+export const MOCK_AUTO_FIX_RESPONSE = {
+  new_nodes: [
+    { id: "n201", label: "具体数据支撑", type: "evidence", position: { x: 500, y: 250 }, children: [] },
+    { id: "n202", label: "典型案例分析", type: "evidence", position: { x: 650, y: 250 }, children: [] },
+  ],
+  new_edges: [
+    { id: "e201", from: "n4", to: "n201", relation: "exemplifies" },
+    { id: "e202", from: "n4", to: "n202", relation: "exemplifies" },
+  ],
+  message: "已为记忆的清凉添加2个论据",
+};
+
+// MOCK: Autocomplete response
+export const MOCK_AUTOCOMPLETE_RESPONSE = {
+  suggestions: ["数据隐私的边界", "算法偏见的影响", "责任归属的困境"],
+};

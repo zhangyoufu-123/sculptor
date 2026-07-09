@@ -1,82 +1,87 @@
 {
   "name": "散文",
-  "type": "essay",
-  "defaultNodes": [
+  "description": "形散神聚的抒情结构，适合随笔、感悟与文学创作",
+  "icon": "🌸",
+  "nodes": [
     {
-      "id": "n1",
-      "label": "文章主题",
+      "id": "ess_01",
       "type": "thesis",
-      "position": {
-        "x": 400,
-        "y": 30
-      },
-      "children": [
-        "n2",
-        "n3",
-        "n4"
-      ]
+      "title": "文章神韵",
+      "summary": "散文的「神」——核心情感或哲思，贯穿全文的基调",
+      "parent": null,
+      "children": ["ess_02", "ess_03", "ess_04"],
+      "order": 1,
+      "isExpanded": true
     },
     {
-      "id": "n2",
-      "label": "引入",
-      "type": "background",
-      "position": {
-        "x": 200,
-        "y": 130
-      },
-      "children": []
+      "id": "ess_02",
+      "type": "hook",
+      "title": "起兴引入",
+      "summary": "以景物、回忆或感悟自然入题，定下情感基调",
+      "parent": "ess_01",
+      "children": ["ess_05"],
+      "order": 2,
+      "isExpanded": true
     },
     {
-      "id": "n3",
-      "label": "主体展开",
+      "id": "ess_03",
       "type": "argument",
-      "position": {
-        "x": 400,
-        "y": 130
-      },
-      "children": [
-        "n5"
-      ]
+      "title": "铺陈展开",
+      "summary": "层层递进展开感悟，由此及彼，由表及里",
+      "parent": "ess_01",
+      "children": ["ess_06", "ess_07"],
+      "order": 3,
+      "isExpanded": true
     },
     {
-      "id": "n4",
-      "label": "升华/收尾",
-      "type": "argument",
-      "position": {
-        "x": 600,
-        "y": 130
-      },
-      "children": []
+      "id": "ess_04",
+      "type": "conclusion",
+      "title": "升华收束",
+      "summary": "回归主题，情感升华，余音绕梁",
+      "parent": "ess_01",
+      "children": ["ess_08"],
+      "order": 4,
+      "isExpanded": true
     },
     {
-      "id": "n5",
-      "label": "核心意象",
+      "id": "ess_05",
       "type": "imagery",
-      "position": {
-        "x": 400,
-        "y": 230
-      },
-      "children": []
-    }
-  ],
-  "defaultEdges": [
-    {
-      "id": "e1",
-      "from": "n2",
-      "to": "n3",
-      "relation": "precedes"
+      "title": "意象铺垫",
+      "summary": "核心意象首次出现，暗含情感指向",
+      "parent": "ess_02",
+      "children": [],
+      "order": 5,
+      "isExpanded": true
     },
     {
-      "id": "e2",
-      "from": "n3",
-      "to": "n4",
-      "relation": "precedes"
+      "id": "ess_06",
+      "type": "evidence",
+      "title": "细节刻画",
+      "summary": "选取典型细节，以小见大，引人遐思",
+      "parent": "ess_03",
+      "children": [],
+      "order": 6,
+      "isExpanded": true
     },
     {
-      "id": "e3",
-      "from": "n1",
-      "to": "n5",
-      "relation": "elaborates"
+      "id": "ess_07",
+      "type": "transition",
+      "title": "联想延伸",
+      "summary": "由具体场景延伸至更广泛的人生感悟",
+      "parent": "ess_03",
+      "children": [],
+      "order": 7,
+      "isExpanded": true
+    },
+    {
+      "id": "ess_08",
+      "type": "imagery",
+      "title": "意象回环",
+      "summary": "核心意象再现，与开头呼应，形成回环之美",
+      "parent": "ess_04",
+      "children": [],
+      "order": 8,
+      "isExpanded": true
     }
   ]
 }
