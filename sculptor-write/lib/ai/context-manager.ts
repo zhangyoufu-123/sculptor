@@ -1,6 +1,7 @@
 // lib/ai/context-manager.ts
 import { getSupabase } from "@/lib/supabase";
 import { readRecentMemories } from "./context-memory";
+import { searchStyleLibrary, searchAll } from "@/lib/knowledge-base";
 import type { ContextPackage, FeedbackLog, StyleProfileData } from "@/types/editor";
 
 interface CollectInput {
@@ -14,7 +15,6 @@ interface CollectInput {
 export async function collectContext(input: CollectInput): Promise<ContextPackage> {
   const supabase = getSupabase();
 
-  // Parallel: fetch style profile + recent feedback
   const [styleResult, feedbackResult] = await Promise.all([
     supabase
       .from("style_profiles")
@@ -45,7 +45,6 @@ export async function collectContext(input: CollectInput): Promise<ContextPackag
     };
   }
 
-  // Fallback: if no style_profiles, try style_samples
   if (!styleProfile) {
     const { data: samplesData } = await supabase
       .from("style_samples")
@@ -74,6 +73,12 @@ export async function collectContext(input: CollectInput): Promise<ContextPackag
     createdAt: f.created_at,
   }));
 
+  // v6.1: Semantic retrieval of similar passages
+  const similarPassages = retrieveSimilarPassages(
+    input.currentText,
+    input.userId
+  );
+
   return {
     userId: input.userId,
     documentId: input.documentId || "",
@@ -83,9 +88,51 @@ export async function collectContext(input: CollectInput): Promise<ContextPackag
     styleProfile,
     documentSkeleton: null,
     recentFeedback,
-    recentMemories: await readRecentMemories(
-      input.userId,
-      input.documentId
-    ),
+    recentMemories: await readRecentMemories(input.userId, input.documentId),
+    similarPassages,
   };
+}
+
+// ── v6.1: Semantic Similarity Retrieval ────────────────────
+
+export interface SimilarPassage {
+  text: string;
+  similarity: number;
+  source: string;
+  type: string;
+}
+
+/** Retrieve semantically similar passages from user's writing history */
+function retrieveSimilarPassages(
+  currentText: string,
+  userId: string
+): SimilarPassage[] {
+  if (!currentText || currentText.length < 20) return [];
+
+  // Query style library (keyword-based, pure local)
+  const styleResults = searchStyleLibrary(currentText, 3);
+
+  // Also query knowledge base for thematic matches
+  const kbResults = searchAll(currentText, 2);
+
+  const passages: SimilarPassage[] = [
+    ...styleResults.map((r) => ({
+      text: r.content,
+      similarity: r.relevance,
+      source: r.source,
+      type: r.type,
+    })),
+    ...kbResults
+      .filter((r) => r.type === "quote")
+      .map((r) => ({
+        text: r.content,
+        similarity: r.relevance,
+        source: r.source,
+        type: "reference",
+      })),
+  ];
+
+  return passages
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, 5);
 }

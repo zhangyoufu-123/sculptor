@@ -4,11 +4,13 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import { getEditorExtensions } from "@/lib/editor/extensions";
 import { useUIStore } from "@/lib/store";
 import { useCallback, useEffect, useRef } from "react";
+import type { GhostCandidate } from "@/extensions/ai/GhostText";
 
 interface EditorCanvasProps {
   onEditorReady?: (editor: NonNullable<ReturnType<typeof useEditor>>) => void;
   onBlankDoubleClick?: () => void;
-  ghostText: string;
+  ghostCandidates: GhostCandidate[];
+  ghostActiveIndex: number;
   isGhostLoading?: () => boolean;
   onGhostAccept?: () => void;
   onGhostReject?: () => void;
@@ -17,7 +19,8 @@ interface EditorCanvasProps {
 export default function EditorCanvas({
   onEditorReady,
   onBlankDoubleClick,
-  ghostText,
+  ghostCandidates,
+  ghostActiveIndex,
   isGhostLoading,
   onGhostAccept,
   onGhostReject,
@@ -28,13 +31,13 @@ export default function EditorCanvas({
   const clearSuggestions = useUIStore((s) => s.clearSuggestions);
   const editorRef = useRef<HTMLDivElement>(null);
 
-  // Track last click for double-click detection on blank paragraphs
   const lastClickRef = useRef<{ time: number; pos: number }>({ time: 0, pos: -1 });
 
-  const getGhostText = useCallback(() => ghostText || null, [ghostText]);
+  const getCandidates = useCallback(() => ghostCandidates, [ghostCandidates]);
+  const getActiveIndex = useCallback(() => ghostActiveIndex, [ghostActiveIndex]);
 
   const editor = useEditor({
-    extensions: getEditorExtensions(getGhostText, isGhostLoading),
+    extensions: getEditorExtensions(getCandidates, getActiveIndex, isGhostLoading),
     editorProps: {
       attributes: {
         class: "prose focus:outline-none max-w-none",
@@ -48,92 +51,60 @@ export default function EditorCanvas({
         },
       },
       handleClick: (view, pos, event) => {
-        if (!onBlankDoubleClick) return false;
+        const now = Date.now();
+        const prev = lastClickRef.current;
+        lastClickRef.current = { time: now, pos };
 
-        const node = view.state.doc.nodeAt(pos);
-        // Check if this is an empty paragraph (no content or only whitespace)
+        // Blank paragraph double-click → trigger intent channel
         if (
-          node &&
-          node.type.name === "paragraph" &&
-          node.textContent.trim() === "" &&
-          !node.childCount
+          now - prev.time < 400 &&
+          pos === prev.pos &&
+          onBlankDoubleClick
         ) {
-          const now = Date.now();
-          if (
-            now - lastClickRef.current.time < 400 &&
-            lastClickRef.current.pos === pos
-          ) {
-            // Double-click on empty paragraph detected
-            lastClickRef.current = { time: 0, pos: -1 };
+          const node = view.state.doc.nodeAt(pos);
+          const isEmpty =
+            node && node.textContent.trim() === "";
+          if (isEmpty) {
             onBlankDoubleClick();
             return true;
           }
-          lastClickRef.current = { time: now, pos };
         }
         return false;
       },
-      handleDoubleClick: () => {
-        // Let handleClick detect double-clicks on blanks
+      handleTextSelection: (_view, _from, _to, text) => {
+        const rect = window.getSelection()?.getRangeAt(0)?.getBoundingClientRect();
+        setSelectedText(text);
+        setSelectionRect(
+          rect
+            ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+            : { top: 0, left: 0, width: 0, height: 0 }
+        );
         return false;
       },
     },
-    onCreate: ({ editor }) => {
-      onEditorReady?.(editor);
+    onSelectionUpdate: ({ editor }) => {
+      if (editor.state.selection.empty) {
+        setSelectedText("");
+        setWritingState("idle");
+      }
     },
   });
 
-  const handleSelectionChange = useCallback(() => {
-    if (!editor) return;
-    const { from, to } = editor.state.selection;
-    if (from === to) {
-      setWritingState("idle");
-      setSelectedText("");
-      setSelectionRect(null);
-      return;
-    }
-    const text = editor.state.doc.textBetween(from, to);
-    if (text.length === 0) {
-      setWritingState("idle");
-      return;
-    }
-    setSelectedText(text);
-    setWritingState("selected");
-
-    try {
-      const start = editor.view.coordsAtPos(from);
-      setSelectionRect({
-        left: start.left,
-        top: start.top,
-        right: start.right,
-        bottom: start.bottom,
-        width: start.right - start.left,
-        height: start.bottom - start.top,
-        x: start.left,
-        y: start.top,
-      } as DOMRect);
-    } catch {
-      // coordsAtPos may throw during rapid edits
-    }
-  }, [editor, setSelectedText, setSelectionRect, setWritingState]);
-
   useEffect(() => {
-    if (!editor) return;
-    editor.on("selectionUpdate", handleSelectionChange);
-    return () => {
-      editor.off("selectionUpdate", handleSelectionChange);
-    };
-  }, [editor, handleSelectionChange]);
+    if (editor && onEditorReady) onEditorReady(editor);
+  }, [editor, onEditorReady]);
 
   return (
     <div
-      className="editor-canvas"
       ref={editorRef}
       style={{
-        maxWidth: 720,
-        margin: "0 auto",
-        padding: "48px 24px",
-        minHeight: "calc(100vh - 56px)",
-        background: "transparent",
+        padding: "64px 48px",
+        minHeight: "80vh",
+        caretColor: "var(--gold)",
+        fontFamily: "'Source Serif 4', serif",
+        fontSize: "18px",
+        lineHeight: 1.8,
+        color: "var(--text-primary)",
       }}
     >
       <EditorContent editor={editor} />

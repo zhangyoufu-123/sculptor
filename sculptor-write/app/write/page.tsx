@@ -49,7 +49,7 @@ export default function WritePage() {
   const clearSuggestions = useUIStore((s) => s.clearSuggestions);
   const setStyleProfile = useUIStore((s) => s.setStyleProfile);
 
-  const { ghostText, isGhostLoading } = useGhostText(editorRef.current);
+  const { candidates: ghostCandidates, activeIndex: ghostActiveIndex, isGhostLoading } = useGhostText(editorRef.current);
 
   // Load skeleton nodes from local store (architect → write bridge)
   const [skeletonNodes, setSkeletonNodes] = useState<ArchitectNode[]>([]);
@@ -123,17 +123,6 @@ export default function WritePage() {
     } catch { clearSuggestions(); setWritingState("idle"); }
   }, [selectedText, currentDocId, setWritingState, addSuggestion, clearSuggestions]);
 
-  // ── Ghost feedback ──────────────────────────────────────────
-  const handleGhostAccept = useCallback(() => {
-    if (!ghostText.text) return;
-    fetch("/api/chat/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentId: currentDocId, suggestionText: ghostText.text, action: "accept", contextPreview: editorRef.current?.getText().slice(-200) || "" }) }).catch(() => {});
-  }, [ghostText, currentDocId]);
-
-  const handleGhostReject = useCallback(() => {
-    if (!ghostText.text) return;
-    fetch("/api/chat/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentId: currentDocId, suggestionText: ghostText.text, action: "reject", contextPreview: editorRef.current?.getText().slice(-200) || "" }) }).catch(() => {});
-  }, [ghostText, currentDocId]);
-
   // ── Keyboard ────────────────────────────────────────────────
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setCommandPaletteOpen(p => !p); } };
@@ -193,7 +182,7 @@ export default function WritePage() {
         {/* CENTER: Editor */}
         <main style={{ flex: 1, display: "flex", justifyContent: "center", overflow: "auto", position: "relative" }}>
           <div style={{ width: "100%", maxWidth: "680px" }}>
-            <EditorCanvas onEditorReady={handleEditorReady} onBlankDoubleClick={() => setCommandPaletteOpen(true)} ghostText={ghostText.text} isGhostLoading={isGhostLoading} onGhostAccept={handleGhostAccept} onGhostReject={handleGhostReject} />
+            <EditorCanvas onEditorReady={handleEditorReady} onBlankDoubleClick={() => setCommandPaletteOpen(true)} ghostCandidates={ghostCandidates} ghostActiveIndex={ghostActiveIndex} isGhostLoading={isGhostLoading} />
           </div>
           <AIBubble onIntent={handleIntent} />
           <SuggestionPreview editor={editorRef.current} intent={currentIntent} onDone={() => triggerAutosave()} />

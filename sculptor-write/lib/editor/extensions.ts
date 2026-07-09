@@ -1,9 +1,13 @@
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { GhostText } from "@/extensions/ai/GhostText";
+import { GhostText, type GhostCandidate } from "@/extensions/ai/GhostText";
 import { SelectionGlow } from "@/extensions/ui/SelectionGlow";
 
-export function getEditorExtensions(getGhostText?: () => string | null, isGhostLoading?: () => boolean) {
+export function getEditorExtensions(
+  getCandidates?: () => GhostCandidate[],
+  getActiveIndex?: () => number,
+  isGhostLoading?: () => boolean
+) {
   return [
     StarterKit.configure({
       heading: false,
@@ -14,7 +18,8 @@ export function getEditorExtensions(getGhostText?: () => string | null, isGhostL
       placeholder: "Start writing...",
     }),
     GhostText.configure({
-      getText: getGhostText || (() => null),
+      getCandidates: getCandidates || (() => []),
+      getActiveIndex: getActiveIndex || (() => 0),
       isLoading: isGhostLoading || (() => false),
     }),
     SelectionGlow,
