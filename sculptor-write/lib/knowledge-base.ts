@@ -121,9 +121,10 @@ export function searchQuotes(text: string, limit = 3): KnowledgeResult[] {
 
 /** Search rhetorical templates matching the text */
 export function searchTemplates(text: string, limit = 2): KnowledgeResult[] {
+  const topic = text.slice(0, 12).replace(/[，。！？、\s]/g, "") || "这个话题";
   return TEMPLATES
     .map((t) => ({
-      content: t.text,
+      content: t.text.replace(/\{topic\}/g, topic).replace(/\{aspect1\}/g, "表层").replace(/\{aspect2\}/g, "深层").replace(/\{surface\}/g, "表面").replace(/\{deeper\}/g, "本质"),
       source: "knowledge-base" as const,
       type: "argument-pattern" as const,
       relevance: relevanceScore(text, t.keywords),
