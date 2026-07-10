@@ -20,6 +20,7 @@ export function useGhostText(editor: Editor | null, nodeContext?: { title?: stri
   const [candidates, setCandidates] = useState<GhostCandidate[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [intensity, setIntensity] = useState<string>("2");
+  const [animState, setAnimState] = useState<"idle" | "accepting" | "dismissing">("idle");
 
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -29,6 +30,7 @@ export function useGhostText(editor: Editor | null, nodeContext?: { title?: stri
   const clearGhost = useCallback(() => {
     setCandidates([]);
     setActiveIndex(0);
+    setAnimState("idle");
   }, []);
 
   const visible = candidates.length > 0;
@@ -230,17 +232,21 @@ export function useGhostText(editor: Editor | null, nodeContext?: { title?: stri
       if (e.key === "Tab" && activeText) {
         e.preventDefault();
         e.stopPropagation();
-        editor.chain().focus().insertContent(activeText).run();
-        recordAccept(activeText);
-        clearGhost();
+        setAnimState("accepting");
+        setTimeout(() => {
+          editor.chain().focus().insertContent(activeText).run();
+          recordAccept(activeText);
+          clearGhost();
+        }, 150); // brief animation before insert
         return;
       }
 
       // Esc: reject all
       if (e.key === "Escape") {
         e.preventDefault();
+        setAnimState("dismissing");
         if (activeText) recordReject(activeText);
-        clearGhost();
+        setTimeout(() => clearGhost(), 150);
       }
     };
 
@@ -256,6 +262,7 @@ export function useGhostText(editor: Editor | null, nodeContext?: { title?: stri
     activeIndex,
     activeText,
     visible,
+    animState,
     clearGhost,
     isGhostLoading: () => loadingRef.current,
     // Legacy compat
