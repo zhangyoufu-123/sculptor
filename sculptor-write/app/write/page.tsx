@@ -11,6 +11,7 @@ import Studio from "@/components/panels/Studio";
 import StyleSetup from "@/components/StyleSetup";
 import SocraticPanel from "@/components/panels/SocraticPanel";
 import StructureMap from "@/components/panels/StructureMap";
+import AuthorMemoryModal from "@/components/author/AuthorMemoryModal";
 import { useGhostText } from "@/hooks/useGhostText";
 import { useEchoWall } from "@/hooks/useEchoWall";
 import { useUIStore } from "@/lib/store";
@@ -34,6 +35,7 @@ export default function WritePage() {
   const [currentIntent, setCurrentIntent] = useState<Intent>("rewrite");
   const [styleOpen, setStyleOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [authorMemoryOpen, setAuthorMemoryOpen] = useState(false);
   const [editorContent, setEditorContent] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
 
@@ -150,7 +152,13 @@ export default function WritePage() {
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "var(--bg-primary)" }}>
-      <TopBar documentTitle={documentTitle} onTitleChange={(t) => { setDocumentTitle(t); saveDocument(t); }} saveStatus={saveStatus} onStyleClick={() => setStyleOpen(true)} />
+       <TopBar documentTitle={documentTitle} onTitleChange={(t) => { setDocumentTitle(t); saveDocument(t); }} saveStatus={saveStatus} onStyleClick={() => setStyleOpen(true)} />
+      {/* v7.0: Author Memory quick access */}
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 16px", background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-light)", gap: 8 }}>
+        <button onClick={() => setAuthorMemoryOpen(true)} style={{ background: "none", border: "none", color: "var(--text-tertiary)", fontSize: 11, cursor: "pointer", fontFamily: "var(--font-ui)" }}>
+          🧠 作者记忆
+        </button>
+      </div>
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* LEFT: Structure Map */}
@@ -244,6 +252,8 @@ export default function WritePage() {
       <StyleSetup isOpen={styleOpen} onClose={() => setStyleOpen(false)} onProfileSaved={handleStyleSaved} />
       <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onExecute={(intent, param) => { if (intent === "custom") { handleIntent("custom" as any, param); } else { handleIntent(intent as any); } }} />
       <SocraticPanel isOpen={socraticOpen} onClose={() => setSocraticOpen(false)} context={editorRef.current?.getText().slice(-500) || ""} />
+      {/* v7.0: Author Memory modal */}
+      {authorMemoryOpen && <AuthorMemoryModal onClose={() => setAuthorMemoryOpen(false)} />}
     </div>
   );
 }
