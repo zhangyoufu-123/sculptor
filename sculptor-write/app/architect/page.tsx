@@ -138,7 +138,7 @@ export default function ArchitectPage() {
                 editor.replaceAll([...incNodes]);
                 continue;
               }
-              const am: ChatMsg = { id: "a" + Date.now() + Math.random().toString(36).slice(2, 6), role: "assistant", content: ev.message || "", type: ev.type, options: ev.options };
+              const am: ChatMsg = { id: "a" + Date.now() + Math.random().toString(36).slice(2, 6), role: "assistant", content: ev.message ? `✓ ${ev.message}` : "✓ 已更新架构", type: ev.type, options: ev.options };
               if (ev.suggestion) am.suggestion = ev.suggestion;
               if (ev.type === "confirmation" && ev.nodes) {
                 // v5.2: Derive parent from children arrays, NOT from edges

@@ -244,7 +244,7 @@ function buildFullArchitecture(topic: string, genre: Genre) {
     case "记叙文":
       return {
         type: "confirmation",
-        message: `已完成关于「${topic}」的叙事架构`,
+        message: `已生成「${topic}」的叙事架构`,
         nodes: [
           n("n1", `开篇：引入${topic}的故事`, "hook", ["n2"], "用一个引人入胜的开头抓住读者，点出时间地点氛围"),
           n("n2", `场景展开：${topic}的时空背景`, "scene", ["n3"], "细腻描绘故事发生的时间、地点与环境氛围"),
@@ -260,7 +260,7 @@ function buildFullArchitecture(topic: string, genre: Genre) {
     case "说明文":
       return {
         type: "confirmation",
-        message: `已完成关于「${topic}」的说明架构`,
+        message: `已生成「${topic}」的说明架构`,
         nodes: [
           n("n1", `引入：为什么需要了解${topic}？`, "hook", ["n2"], "用一个日常场景或问题引出要说明的概念"),
           n("n2", `定义：${topic}到底是什么？`, "definition", ["n3"], "用一句话概括核心定义，让读者建立初步印象"),
@@ -277,7 +277,7 @@ function buildFullArchitecture(topic: string, genre: Genre) {
     case "散文":
       return {
         type: "confirmation",
-        message: `已完成关于「${topic}」的散文架构`,
+        message: `已生成「${topic}」的散文架构`,
         nodes: [
           n("n1", `起笔：${topic}的第一印象`, "hook", ["n2"], "用一个画面、声音或气味瞬间将读者带入情境"),
           n("n2", `意象一：${topic}中的核心画面`, "imagery", ["n3"], "选取一个具象的画面来承载你想表达的情感"),
@@ -293,7 +293,7 @@ function buildFullArchitecture(topic: string, genre: Genre) {
     case "游记":
       return {
         type: "confirmation",
-        message: `已完成关于「${topic}」的游记架构`,
+        message: `已生成「${topic}」的游记架构`,
         nodes: [
           n("n1", `启程：踏上${topic}的旅途`, "hook", ["n2"], "点明目的地与出发时的心情，营造期待感"),
           n("n2", `初抵：${topic}的第一印象`, "departure", ["n3"], "到达时的所见所感，环境与氛围的掠影"),
@@ -311,7 +311,7 @@ function buildFullArchitecture(topic: string, genre: Genre) {
     default: // 议论文
       return {
         type: "confirmation",
-        message: `已完成关于「${topic}」的论证架构`,
+        message: `已生成「${topic}」的论证架构`,
         nodes: [
           n("n1", `论${topic}`, "thesis", ["n4", "n5"], "核心论点：用一句鲜明论断提出立场"),
           n("n2", `当我们谈论${topic}时，我们在谈论什么？`, "hook", ["n3"], "开篇钩子：引发读者兴趣"),
