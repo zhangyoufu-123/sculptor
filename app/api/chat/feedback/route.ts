@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
         .limit(20);
 
       if (recentLogs && recentLogs.length >= 5) {
-        const accepted = recentLogs.filter((l) => l.action === "accept").length;
+        const accepted = recentLogs.filter((l: any) => l.action === "accept").length;
         const rate = accepted / recentLogs.length;
 
         // Update active style_sample compliance_rate
