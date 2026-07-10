@@ -7,7 +7,7 @@ import EditorCanvas from "@/components/EditorCanvas";
 import AIBubble from "@/components/AIBubble";
 import SuggestionPreview from "@/components/SuggestionPreview";
 import CommandPalette from "@/components/CommandPalette";
-import EchoWall from "@/components/panels/EchoWall";
+import Studio from "@/components/panels/Studio";
 import StyleSetup from "@/components/StyleSetup";
 import SocraticPanel from "@/components/panels/SocraticPanel";
 import StructureMap from "@/components/panels/StructureMap";
@@ -37,7 +37,7 @@ export default function WritePage() {
   const [editorContent, setEditorContent] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
 
-  // v6.0 EchoWall engine
+  // v7.0 Studio engine
   const echoWall = useEchoWall({
     editorContent,
     cursorPosition: cursorPos,
@@ -49,7 +49,7 @@ export default function WritePage() {
   const clearSuggestions = useUIStore((s) => s.clearSuggestions);
   const setStyleProfile = useUIStore((s) => s.setStyleProfile);
 
-  // v6.0: Wire text selection to EchoWall intent channel
+  // v7.0: Wire text selection to Studio intent channel
   useEffect(() => {
     echoWall.handleTextSelect(selectedText);
   }, [selectedText]);
@@ -82,7 +82,7 @@ export default function WritePage() {
 
   const handleEditorReady = useCallback((editor: Editor) => {
     editorRef.current = editor;
-    // Track content for EchoWall
+    // Track content for Studio
     editor.on("update", () => {
       setEditorContent(editor.getText());
       setCursorPos(editor.state.selection.from);
@@ -200,19 +200,19 @@ export default function WritePage() {
           <SuggestionPreview editor={editorRef.current} intent={currentIntent} onDone={() => triggerAutosave()} />
         </main>
 
-        {/* RIGHT: EchoWall */}
+        {/* RIGHT: Studio */}
         <div style={{ width: rightW, flexShrink: 0, background: "var(--bg-secondary)", borderLeft: "1px solid var(--border-light)", display: "flex", flexDirection: "column", transition: "width 0.3s", overflow: "hidden" }}>
           {rightPanel === "open" ? (
             <>
               <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>回声壁</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Studio</span>
                 <div style={{ display: "flex", gap: 4 }}>
                   <button className="btn-icon" onClick={() => setSocraticOpen(true)} aria-label="追问" style={{ width: 24, height: 24 }}>💭</button>
                   <button className="btn-icon" onClick={() => setRightPanel("collapsed")} aria-label="折叠" style={{ width: 24, height: 24 }}>▷</button>
                 </div>
               </div>
               <div style={{ flex: 1, overflow: "auto" }}>
-                <EchoWall
+                <Studio
                   state={echoWall.state}
                   onDismissInspiration={echoWall.dismissInspiration}
                   onAcceptInspiration={(id) => {

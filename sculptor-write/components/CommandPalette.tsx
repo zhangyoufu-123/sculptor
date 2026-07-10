@@ -2,50 +2,68 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 
-type PaletteIntent =
-  | "continue"
-  | "rewrite"
-  | "style_experiment"
-  | "search_material"
-  | "generate_outline"
-  | "more_concise"
-  | "more_flowery"
-  | "more_humorous";
+// ── Types ──────────────────────────────────────────────────────
+export type PaletteMode = "write" | "architect";
 
 interface Command {
-  id: PaletteIntent;
+  id: string;
   label: string;
   description: string;
   icon: string;
 }
 
-const COMMANDS: Command[] = [
-  { id: "continue", label: "继续", description: "AI 续写", icon: "➡️" },
-  { id: "rewrite", label: "改写", description: "改写选中内容", icon: "✏️" },
-  { id: "style_experiment", label: "风格", description: "风格实验", icon: "🎨" },
-  { id: "search_material", label: "论据", description: "查找论据", icon: "📚" },
-  { id: "generate_outline", label: "大纲", description: "生成大纲", icon: "📋" },
-  { id: "more_concise", label: "简洁", description: "更简洁", icon: "📏" },
-  { id: "more_flowery", label: "华丽", description: "更华丽", icon: "🌸" },
-  { id: "more_humorous", label: "幽默", description: "更幽默", icon: "😄" },
+// ── Mode-aware command sets ────────────────────────────────────
+const WRITE_COMMANDS: Command[] = [
+  { id: "rewrite",   label: "/rewrite",   description: "改写选中文字", icon: "✏️" },
+  { id: "continue",  label: "/continue",  description: "AI 续写",       icon: "➡️" },
+  { id: "expand",    label: "/expand",    description: "扩写内容",       icon: "📝" },
+  { id: "outline",   label: "/outline",   description: "生成大纲",       icon: "📋" },
+  { id: "summarize", label: "/summarize", description: "总结摘要",       icon: "📄" },
+  { id: "health",    label: "/health",    description: "文本健康检查",   icon: "🩺" },
+  { id: "focus",     label: "/focus",     description: "聚焦主题",       icon: "🎯" },
+  { id: "draft",     label: "/draft",     description: "生成草稿",       icon: "📃" },
 ];
 
-interface CommandPaletteProps {
-  open: boolean;
-  onClose: () => void;
-  onExecute: (intent: string, param?: string) => void;
+const ARCHITECT_COMMANDS: Command[] = [
+  { id: "outline",   label: "/outline",   description: "生成大纲结构",   icon: "📋" },
+  { id: "expand",    label: "/expand",    description: "展开章节细节",   icon: "📝" },
+  { id: "review",    label: "/review",    description: "审查架构",       icon: "🔍" },
+  { id: "research",  label: "/research",  description: "研究参考素材",   icon: "📚" },
+];
+
+// ── Helpers ────────────────────────────────────────────────────
+function getCommandsForMode(mode: PaletteMode): Command[] {
+  switch (mode) {
+    case "architect":
+      return ARCHITECT_COMMANDS;
+    case "write":
+    default:
+      return WRITE_COMMANDS;
+  }
 }
 
+// ── Props ──────────────────────────────────────────────────────
+interface CommandPaletteProps {
+  open: boolean;
+  mode?: PaletteMode;
+  onClose: () => void;
+  onExecute: (commandId: string, param?: string) => void;
+}
+
+// ── Component ──────────────────────────────────────────────────
 export default function CommandPalette({
   open,
+  mode = "write",
   onClose,
   onExecute,
 }: CommandPaletteProps) {
+  const commands = getCommandsForMode(mode);
+
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const filtered = COMMANDS.filter((cmd) => {
+  const filtered = commands.filter((cmd) => {
     if (!query.trim()) return true;
     const q = query.toLowerCase();
     return (
@@ -236,9 +254,10 @@ export default function CommandPalette({
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
-                    color: "var(--text-primary)",
+                    color: "var(--gold)",
                     fontSize: 14,
                     fontWeight: 600,
+                    fontFamily: "monospace",
                   }}
                 >
                   {cmd.label}
