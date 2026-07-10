@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import type { EchoWallState, InspirationItem } from "@/hooks/useEchoWall";
 
 // ── Codex-inspired design tokens (warm-tone adaptation) ────
@@ -39,9 +39,14 @@ export default function Studio({
     selectionLoading,
   } = state;
 
+  const [activeTab, setActiveTab] = useState<"notes" | "refs" | "ai">("notes");
+
   // Determine which diagnosis to show
   const activeDiagnosis = selectionAnalysis || diagnosis;
   const isLoading = selectionLoading || diagnosisLoading;
+
+  // Auto-switch to AI tab when user summons it (selection or pause suggests intent)
+  const lastManualSwitch = useRef(0);
 
   return (
     <div style={containerStyle}>
@@ -51,8 +56,54 @@ export default function Studio({
         pauseDuration={pauseDuration}
       />
 
+      {/* ── Tab bar ─────────────────────────────────────── */}
+      <div style={{
+        display: "flex", borderBottom: "1px solid var(--border-light)",
+        background: "var(--bg-tertiary)", padding: "0 8px",
+      }}>
+        {(["notes", "refs", "ai"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => { setActiveTab(tab); lastManualSwitch.current = Date.now(); }}
+            style={{
+              padding: "6px 12px", border: "none", background: "transparent",
+              color: activeTab === tab ? "var(--gold)" : "var(--text-tertiary)",
+              fontSize: 11, fontWeight: activeTab === tab ? 600 : 400,
+              cursor: "pointer", borderBottom: activeTab === tab ? "2px solid var(--gold)" : "2px solid transparent",
+              transition: "all 0.15s ease", fontFamily: "var(--font-ui)",
+            }}
+          >
+            {tab === "notes" ? "📝 笔记" : tab === "refs" ? "📚 参考" : "🤖 AI"}
+          </button>
+        ))}
+      </div>
+
       {/* ── Scrollable content ──────────────────────────── */}
       <div style={scrollStyle}>
+        {activeTab === "notes" && (
+          <div style={emptyTabStyle}>
+            <span style={{ fontSize: 28, opacity: 0.4 }}>📝</span>
+            <span style={{ fontSize: 11, color: "var(--text-tertiary)", textAlign: "center" }}>
+              当前节点的笔记会显示在这里
+              <br />
+              在大纲中右键节点 → 添加笔记
+            </span>
+          </div>
+        )}
+
+        {activeTab === "refs" && (
+          <div style={emptyTabStyle}>
+            <span style={{ fontSize: 28, opacity: 0.4 }}>📚</span>
+            <span style={{ fontSize: 11, color: "var(--text-tertiary)", textAlign: "center" }}>
+              拖入网页链接、PDF 或图片
+              <br />
+              作为写作参考资料
+            </span>
+          </div>
+        )}
+
+        {activeTab === "ai" && (
+          <>
         {/* Status bar */}
         <StatusBar
           currentParagraph={currentParagraph}
@@ -74,6 +125,8 @@ export default function Studio({
           onAccept={onAcceptInspiration}
           onFeedback={onFeedback ? (id: string, helpful: boolean) => onFeedback("inspiration", id, helpful) : undefined}
         />
+          </>
+        )}
       </div>
 
       {/* ── Footer ──────────────────────────────────────── */}
@@ -558,6 +611,16 @@ const emptyStreamStyle: React.CSSProperties = {
   borderRadius: 8,
   background: "var(--bg-primary)",
   border: "1px dashed var(--border-light)",
+};
+
+const emptyTabStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "40px 20px",
+  gap: 8,
+  flex: 1,
 };
 
 const inspirationItemStyle: React.CSSProperties = {
