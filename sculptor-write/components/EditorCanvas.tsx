@@ -71,26 +71,32 @@ export default function EditorCanvas({
         }
         return false;
       },
-      onSelectionUpdate: ({ editor }) => {
-        const { from, to } = editor.state.selection;
-        if (from === to) {
-          setSelectedText("");
-          setSelectionRect(null);
-          setWritingState("idle");
-          return;
-        }
-        const text = editor.state.doc.textBetween(from, to);
-        setSelectedText(text);
-        const rect = window.getSelection()?.getRangeAt(0)?.getBoundingClientRect();
-        setSelectionRect(
-          rect
-            ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
-            : { top: 0, left: 0, width: 0, height: 0 }
-        );
-        return false;
-      },
     },
   });
+
+  // Track text selection for EchoWall (v6.0 intent channel)
+  useEffect(() => {
+    if (!editor) return;
+    const handler = () => {
+      const { from, to } = editor.state.selection;
+      if (from === to) {
+        setSelectedText("");
+        setSelectionRect(null);
+        setWritingState("idle");
+        return;
+      }
+      const text = editor.state.doc.textBetween(from, to);
+      setSelectedText(text);
+      const rect = window.getSelection()?.getRangeAt(0)?.getBoundingClientRect();
+      setSelectionRect(
+        rect
+          ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+          : { top: 0, left: 0, width: 0, height: 0 }
+      );
+    };
+    editor.on("selectionUpdate", handler);
+    return () => { editor.off("selectionUpdate", handler); };
+  }, [editor]);
 
   useEffect(() => {
     if (editor && onEditorReady) onEditorReady(editor);

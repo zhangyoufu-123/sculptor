@@ -115,6 +115,7 @@ export interface ContextPackage {
   documentSkeleton: unknown | null;
   recentFeedback: FeedbackLog[];
   recentMemories?: MemoryEntry[];
+  similarPassages?: { text: string; relevance: number }[];
 }
 
 export interface IntentAnalysis {
