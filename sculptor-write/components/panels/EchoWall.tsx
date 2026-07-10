@@ -190,7 +190,7 @@ function DiagnosisCard({
       <div style={cardStyle}>
         <div style={emptyCardStyle}>
           <span style={{ fontSize: 24, marginBottom: 8, opacity: 0.6 }}>📖</span>
-          <span style={{ fontSize: 12, color: "var(--text-tertiary)", lineHeight: 1.6, textAlign: "center" }}>
+          <span style={{ fontSize: 11, color: "var(--text-tertiary)", lineHeight: 1.6, textAlign: "center" }}>
             写完一个段落后
             <br />
             回声壁会自动为你分析
@@ -324,7 +324,7 @@ function InspirationStream({
           }}
         >
           <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-            <span style={{ fontSize: 12, marginTop: 1, flexShrink: 0 }}>
+            <span style={{ fontSize: 11, marginTop: 1, flexShrink: 0 }}>
               {typeIcons[item.type] || "·"}
             </span>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -437,7 +437,7 @@ const headerStyle: React.CSSProperties = {
 };
 
 const headerTitleStyle: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 13,
   fontWeight: 600,
   color: "var(--text-secondary)",
   letterSpacing: "0.3px",
@@ -511,7 +511,7 @@ const sectionLabelStyle: React.CSSProperties = {
 };
 
 const mirrorTextStyle: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 13,
   color: "var(--text-secondary)",
   lineHeight: 1.6,
   margin: 0,
@@ -519,7 +519,7 @@ const mirrorTextStyle: React.CSSProperties = {
 };
 
 const readerTextStyle: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 13,
   color: "var(--gold)",
   lineHeight: 1.6,
   margin: 0,
@@ -608,7 +608,7 @@ const feedbackBtnStyle: React.CSSProperties = {
   borderRadius: 3,
   border: "none",
   background: "transparent",
-  fontSize: 12,
+  fontSize: 11,
   cursor: "pointer",
   opacity: 0.5,
   transition: "opacity 0.15s ease",

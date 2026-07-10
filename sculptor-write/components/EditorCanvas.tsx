@@ -90,8 +90,8 @@ export default function EditorCanvas({
       const rect = window.getSelection()?.getRangeAt(0)?.getBoundingClientRect();
       setSelectionRect(
         rect
-          ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
-          : { top: 0, left: 0, width: 0, height: 0 }
+          ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height } as DOMRect
+          : { top: 0, left: 0, width: 0, height: 0 } as DOMRect
       );
     };
     editor.on("selectionUpdate", handler);
