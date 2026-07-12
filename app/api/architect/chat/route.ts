@@ -5,6 +5,7 @@ import { getSupabase } from "@/lib/supabase";
 import { isMockMode } from "@/lib/ai/mock-responses";
 import { ARCHITECT_CHAT_SYSTEM_PROMPT, buildArchitectChatPrompt } from "@/lib/ai/prompts/architect-chat";
 import { getRecentCanvasChanges, getUserPreferences } from "@/lib/ai/architect-memory";
+import { detectGenre, getGenreInfo, type Genre } from "@/lib/ai/genre-detector";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -19,13 +20,11 @@ function extractGenre(hist: { role: string; content: string }[]): Genre {
     if (m.role !== "user") continue;
     const match = m.content.match(/^\[文体：(.+?)\]/);
     if (match) return match[1] as Genre;
-    
-    // Content-based genre detection (no prefix)
-    const c = m.content;
-    if (/故事|经历|回忆|那年|曾经|记得|小时候/.test(c)) return "记叙文";
-    if (/解释|说明|为什么|什么是|原理|定义|概念|如何|怎么/.test(c)) return "说明文";
-    if (/散文|随笔|感悟|心境|随笔|随想/.test(c)) return "散文";
-    if (/游记|旅行|游记|之旅|景点|游|去了/.test(c)) return "游记";
+  }
+  // Content-based detection using expanded keyword rules
+  for (const m of hist) {
+    if (m.role !== "user") continue;
+    return detectGenre(m.content);
   }
   return "议论文";
 }
@@ -62,6 +61,48 @@ function extractTopic(messages: string[], genre: Genre): string {
         cleaned = cleaned
           .replace(/^说明|^介绍|^解释|^阐述|^我想写|^我想/, "")
           .replace(/的说明|的原理|的概念$/g, "")
+          .trim();
+        break;
+      case "论文":
+        cleaned = cleaned
+          .replace(/^写一篇|^帮我写|^我想写|^研究|^关于/, "")
+          .replace(/的学术论文|的论文|的研究/g, "")
+          .trim();
+        break;
+      case "朋友圈":
+        cleaned = cleaned
+          .replace(/^帮我写|^写一个|^写个|^写|^发|^配|^关于/, "")
+          .replace(/的朋友圈|的配文|的文案/g, "")
+          .trim();
+        break;
+      case "视频文案":
+        cleaned = cleaned
+          .replace(/^写|^帮我写|^创作|^关于/, "")
+          .replace(/的视频脚本|的短视频|的文案|的脚本/g, "")
+          .trim();
+        break;
+      case "戏剧":
+        cleaned = cleaned
+          .replace(/^写|^创作|^关于/, "")
+          .replace(/的剧本|的话剧|的戏剧|的对白/g, "")
+          .trim();
+        break;
+      case "诗歌":
+        cleaned = cleaned
+          .replace(/^写|^创作|^关于/, "")
+          .replace(/的诗|的词|的诗歌|的诗词/g, "")
+          .trim();
+        break;
+      case "演讲稿":
+        cleaned = cleaned
+          .replace(/^写|^帮我写|^关于/, "")
+          .replace(/的演讲稿|的发言|的致辞/g, "")
+          .trim();
+        break;
+      case "商业文案":
+        cleaned = cleaned
+          .replace(/^写|^帮我写|^创作|^关于/, "")
+          .replace(/的广告|的文案|的推广/g, "")
           .trim();
         break;
       default: // 议论文
@@ -331,6 +372,33 @@ function buildFullArchitecture(topic: string, genre: Genre) {
   }
 }
 
+// ── v8.0: Generic node builder for new genres ──────────────
+
+function buildGenericNodes(round: number, topic: string, nodeTypes: string[]): ReturnType<typeof n>[] {
+  const primary = nodeTypes[0] || "section";
+  const secondary = nodeTypes[1] || "detail";
+  const tertiary = nodeTypes[2] || "note";
+  
+  switch (round) {
+    case 0:
+      return [
+        n("n1", `${topic}`, primary, ["n2", "n3"], `从这里开始展开关于「${topic}」的创作`),
+        n("n2", `开场：引入${topic}`, "hook", ["n3"], "用一个引人入胜的开头抓住注意力"),
+        n("n3", `铺垫：${topic}的背景`, "background", [], "必要的背景信息，帮助理解"),
+      ];
+    case 1:
+      return [
+        n("n4", `展开：${topic}的核心`, secondary, ["n5"], "深入展开核心内容"),
+        n("n5", `细节：${topic}的具体呈现`, tertiary, ["n6"], "用具体内容充实创作"),
+      ];
+    case 2:
+    default:
+      return [
+        n("n6", `收尾：${topic}的落点`, "conclusion", [], "有力的收尾，留下印象"),
+      ];
+  }
+}
+
 // ── v5.3: Genre-aware deep questioning ──────────────────────
 
 function getDeepQuestion(
@@ -338,9 +406,54 @@ function getDeepQuestion(
   message: string,
   hist: { role: string; content: string }[],
   genre: Genre,
-): DeepQuestionResult {
+) {
   const topic = extractTopic(getUserAnswers(hist), genre);
   const answers = getUserAnswers(hist);
+  const info = getGenreInfo(genre);
+
+  // v8.0: New genres — use generic builder
+  if (!["议论文","记叙文","说明文","散文","游记"].includes(genre)) {
+    const nodeTypes = info.nodeTypes;
+    const nodes = buildGenericNodes(round, topic, nodeTypes);
+
+    const questions: Record<number, { msg: string; options: { label: string; value: string }[] }> = {
+      0: {
+        msg: `好的，我来帮你构思「${topic}」。\n\n**第一个问题：你想从哪里切入？**`,
+        options: [
+          q("从背景和定义开始", "背景定义"),
+          q("直接进入核心内容", "直接核心"),
+          q("用一个故事或场景引入", "场景引入"),
+          q("先提出问题，再逐步解答", "问题引入"),
+        ],
+      },
+      1: {
+        msg: `框架在扩展。\n\n**关于「${topic}」，你最想突出的是什么？**`,
+        options: [
+          q("核心观点/主题", "核心观点"),
+          q("具体细节/案例", "具体细节"),
+          q("情感/氛围", "情感氛围"),
+          q("实用价值/建议", "实用价值"),
+        ],
+      },
+      2: {
+        msg: `核心内容已就位。\n\n**怎么收尾最有力量？**`,
+        options: [
+          q("总结升华", "总结升华"),
+          q("留下思考空间", "开放结尾"),
+          q("呼应开头", "呼应开头"),
+          q("✅ 生成完整架构", "生成架构"),
+        ],
+      },
+    };
+
+    return {
+      type: "clarification",
+      message: questions[round]?.msg || "继续完善你的创作",
+      options: questions[round]?.options || [],
+      round: round + 1,
+      nodes,
+    };
+  }
 
   switch (genre) {
     // ── 记叙文 ──────────────────────────────────────────────
