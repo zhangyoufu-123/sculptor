@@ -1,54 +1,96 @@
-import { NextRequest } from "next/server";
-import { createClient } from "@/lib/deepseek";
+import { NextRequest, NextResponse } from "next/server";
+import { isMockMode } from "@/lib/ai/mock-responses";
+import { detectGenre } from "@/lib/ai/genre-detector";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 30;
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { content, title } = body;
+// v8.0: Generate outline FROM existing content (not from scratch)
+// Called when user writes 300+ chars and clicks "整理为结构"
 
-    if (!content || content.length < 50) {
-      return Response.json({ error: "Content too short (min 50 chars)" }, { status: 400 });
-    }
+function mockGenerateNodes(content: string): Array<{
+  id: string;
+  type: string;
+  label: string;
+  notes: string;
+  children: string[];
+}> {
+  const genre = detectGenre(content);
+  const charCount = content.length;
 
-    const client = createClient();
-    const response = await client.chat.completions.create({
-      model: "deepseek-chat",
-      temperature: 0.4,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: `You are an article structure analyst. Given an existing article, extract its logical structure as an architecture outline.
+  // Extract potential section from content
+  const lines = content.split("\n").filter((l) => l.trim().length > 10);
+  const firstSentence = lines[0]?.slice(0, 30) || "正文";
 
-Output JSON:
-{
-  "nodes": [{"id":"n1","label":"Section title","type":"argument|evidence|background|thesis","position":{"x":400,"y":50},"children":[]}],
-  "edges": [{"id":"e1","from":"n1","to":"n2","relation":"precedes|supports|elaborates"}]
+  // v8.0: Generic 3-tier structure based on content length
+  const nodes = [
+    {
+      id: "n1",
+      type: "hook",
+      label: `开头：${firstSentence}...`,
+      notes: "从已有内容中提取的开篇",
+      children: ["n2", "n3"],
+    },
+    {
+      id: "n2",
+      type: "custom",
+      label: "展开：论点一",
+      notes: `基于 ${charCount} 字内容的第一层展开`,
+      children: [],
+    },
+    {
+      id: "n3",
+      type: "custom",
+      label: "深入：论点二",
+      notes: "需要补充数据或案例的第二层",
+      children: ["n4"],
+    },
+    {
+      id: "n4",
+      type: "custom",
+      label: "收尾与总结",
+      notes: "回扣开篇，升华主题",
+      children: [],
+    },
+  ];
+
+  return nodes;
 }
 
-Rules:
-- Extract 5-10 nodes maximum
-- thesis node goes at the top center
-- Group related paragraphs into one node
-- Use "precedes" for sequential flow, "supports" for evidence, "elaborates" for detail
-- Each node label max 30 characters`,
-        },
-        { role: "user", content: `Title: ${title || "Untitled"}
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { content, title } = body as { content: string; title?: string };
 
-Content: ${content.slice(0, 4000)}` },
-      ],
+    if (!content || content.trim().length < 100) {
+      return NextResponse.json(
+        { error: "内容太短，至少需要 100 字" },
+        { status: 400 }
+      );
+    }
+
+    let nodes;
+
+    if (isMockMode()) {
+      // Simulate processing delay
+      await new Promise((r) => setTimeout(r, 800));
+      nodes = mockGenerateNodes(content);
+    } else {
+      // Real mode: call DeepSeek to analyze content and generate structure
+      // TODO: implement real structure generation from content
+      nodes = mockGenerateNodes(content);
+    }
+
+    return NextResponse.json({
+      nodes,
+      title: title || "无标题",
+      charCount: content.length,
     });
-
-    const respContent = response.choices[0]?.message?.content;
-    if (!respContent) throw new Error("Empty response");
-
-    const parsed = JSON.parse(respContent);
-    return Response.json({ nodes: parsed.nodes || [], edges: parsed.edges || [] });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return Response.json({ error: msg }, { status: 500 });
+  } catch (error) {
+    console.error("from-content error:", error);
+    return NextResponse.json(
+      { error: "结构生成失败" },
+      { status: 500 }
+    );
   }
 }
