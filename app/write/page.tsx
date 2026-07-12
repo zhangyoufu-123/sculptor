@@ -121,7 +121,7 @@ export default function WritePage() {
     }
   }, []);
 
-  // v6.1: Ghost text with architecture context
+  // v6.1: Ghost Thinking with architecture context
   const activeNode = skeletonNodes.find((n) => n.id === activeNodeId);
   const nodeContext = activeNode ? {
     title: activeNode.label,
@@ -134,8 +134,11 @@ export default function WritePage() {
     editorRef.current = editor;
     // Track content for Studio
     editor.on("update", () => {
-      setEditorContent(editor.getText());
+      const text = editor.getText();
+      setEditorContent(text);
       setCursorPos(editor.state.selection.from);
+      // v8.0: Persist last content for Reflection
+      localStorage.setItem("sculptor-last-content", text);
     });
     editor.on("selectionUpdate", () => {
       setCursorPos(editor.state.selection.from);
@@ -346,6 +349,25 @@ export default function WritePage() {
               }
             }}
           />
+          <button
+            onClick={() => window.location.href = "/reflect"}
+            title="完成写作，回望思维路径"
+            style={{
+              background: editorContent.length > 100 ? "var(--accent-gold, #c9a95c)" : "var(--bg-tertiary)",
+              border: "none",
+              color: editorContent.length > 100 ? "#fff" : "var(--text-tertiary)",
+              fontSize: 11,
+              cursor: editorContent.length > 100 ? "pointer" : "default",
+              fontFamily: "var(--font-ui)",
+              padding: "4px 12px",
+              borderRadius: 6,
+              fontWeight: 600,
+              transition: "all 0.15s",
+              opacity: editorContent.length > 100 ? 1 : 0.5,
+            }}
+          >
+            完成
+          </button>
         </div>
       </div>
 

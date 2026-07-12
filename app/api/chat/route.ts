@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
         async start(controller) {
           const encoder = new TextEncoder();
           try {
+            // ── Ghost Thinking (mock) ──────────────────────────
             // v8.0: Structure suggestions, not sentence guessing
             if (isMockMode()) {
               const nodeTitle = body.nodeContext?.title || "";

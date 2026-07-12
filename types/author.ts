@@ -1,6 +1,7 @@
 // types/author.ts
-// 写作规则 —— 简单的字符串规则集（Cursor Rules 风格）
+// 思维偏好 —— 写作规则 + 思考特点
 
-export interface WritingRules {
+export interface ThinkingMemory {
   rules: string;
+  patterns: string;
 }

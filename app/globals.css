@@ -142,7 +142,7 @@
   --interactive-accent-hover: var(--color-brand-400);
   --interactive-accent-press: var(--color-brand-600);
 
-  /* Ghost Text */
+  /* Ghost Thinking */
   --ghost-color: var(--color-neutral-400);
   --ghost-color-draft: var(--color-neutral-300);
   --ghost-color-loading: var(--color-neutral-500);
@@ -195,7 +195,7 @@
   --btn-padding-x: 16px;
   --btn-padding-y: 10px;
 
-  /* Ghost Text component */
+  /* Ghost Thinking component */
   --ghost-opacity-draft: 0.4;
   --ghost-opacity-precise: 0.6;
 

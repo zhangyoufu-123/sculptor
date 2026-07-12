@@ -11,6 +11,12 @@ interface Question {
   affirmed: boolean;
 }
 
+interface Insight {
+  text: string;
+  source: string;
+  confirmed: boolean;
+}
+
 // ── LocalStorage helpers ─────────────────────────────────────
 
 const LS_ANCHOR = "sculptor-anchor";
@@ -191,6 +197,90 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 8,
     transition: "border-color 150ms",
   },
+  // ── Insight cards ──
+  insightSection: {
+    marginBottom: 40,
+  },
+  insightCard: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    padding: "16px 20px",
+    borderRadius: "var(--radius-md)",
+    background: "var(--bg-secondary)",
+    border: "1px solid var(--border-subtle)",
+    borderLeft: "3px solid var(--gold)",
+    marginBottom: 8,
+  },
+  insightText: {
+    fontSize: 15,
+    color: "var(--text-primary)",
+    lineHeight: 1.6,
+    fontWeight: 500,
+  },
+  insightSource: {
+    fontSize: 11,
+    color: "var(--text-tertiary)",
+    opacity: 0.6,
+  },
+  insightActions: {
+    display: "flex",
+    gap: 8,
+  },
+  insightConfirmBtn: {
+    padding: "4px 14px",
+    fontSize: 12,
+    borderRadius: "var(--radius-sm)",
+    border: "1px solid var(--gold)",
+    background: "var(--gold)",
+    color: "var(--text-on-brand)",
+    cursor: "pointer",
+    fontFamily: "var(--font-ui)",
+    transition: "all 150ms",
+    whiteSpace: "nowrap",
+    fontWeight: 500,
+  },
+  insightSkipBtn: {
+    padding: "4px 14px",
+    fontSize: 12,
+    borderRadius: "var(--radius-sm)",
+    border: "1px solid transparent",
+    background: "transparent",
+    color: "var(--text-tertiary)",
+    cursor: "pointer",
+    fontFamily: "var(--font-ui)",
+    transition: "all 150ms",
+    whiteSpace: "nowrap",
+    opacity: 0.7,
+  },
+  insightConfirmedCard: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    padding: "16px 20px",
+    borderRadius: "var(--radius-md)",
+    background: "rgba(201, 169, 92, 0.04)",
+    border: "1px solid var(--gold)",
+    borderLeft: "3px solid var(--gold)",
+    marginBottom: 8,
+  },
+  insightDiscoverBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 40,
+    padding: "10px 24px",
+    background: "transparent",
+    color: "var(--gold)",
+    border: "1px solid var(--gold)",
+    borderRadius: "var(--radius-lg)",
+    fontFamily: "var(--font-ui)",
+    fontSize: 14,
+    fontWeight: 500,
+    cursor: "pointer",
+    transition: "all 150ms",
+  },
   // ── Ideas section ──
   ideasSection: {
     marginBottom: 40,
@@ -341,6 +431,11 @@ export default function DiscoverPage() {
   const [generating, setGenerating] = useState(false);
   const [userInput, setUserInput] = useState("");
 
+  // ── Insight state ──
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const [loadingInsights, setLoadingInsights] = useState(false);
+  const [insightFetched, setInsightFetched] = useState(false);
+
   const anchorRef = useRef(anchor);
 
   // ── Load on mount ──
@@ -482,12 +577,56 @@ export default function DiscoverPage() {
     setIdeas((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  // ── Insights ──
+  const fetchInsights = async () => {
+    setLoadingInsights(true);
+    setInsightFetched(false);
+    try {
+      const r = await fetch("/api/discover/insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anchor: anchorRef.current,
+          thinking: thinkingItems,
+          ideas,
+        }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        const items: Insight[] = (d.insights || []).map(
+          (ins: { text: string; source: string }) => ({
+            text: ins.text,
+            source: ins.source,
+            confirmed: false,
+          })
+        );
+        setInsights(items);
+        setInsightFetched(true);
+      }
+    } catch {
+      // silent
+    }
+    setLoadingInsights(false);
+  };
+
+  const confirmInsight = (idx: number) => {
+    setInsights((prev) =>
+      prev.map((ins, i) => (i === idx ? { ...ins, confirmed: !ins.confirmed } : ins))
+    );
+  };
+
+  const skipInsight = (idx: number) => {
+    setInsights((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const confirmedInsights = insights.filter((ins) => ins.confirmed);
+
   // ── Generate outline ──
   const thinkingItems = questions
     .filter((q) => q.affirmed)
     .map((q) => q.text);
 
-  const canGenerate = thinkingItems.length >= 3 && ideas.length > 0;
+  const canGenerate = thinkingItems.length >= 3 && confirmedInsights.length >= 2;
 
   const generateOutline = async () => {
     if (!canGenerate || generating) return;
@@ -498,7 +637,10 @@ export default function DiscoverPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           anchor: anchorRef.current,
-          thinking: thinkingItems,
+          thinking: [
+            ...thinkingItems,
+            ...confirmedInsights.map((ins) => ins.text),
+          ],
           ideas,
         }),
       });
@@ -729,6 +871,122 @@ export default function DiscoverPage() {
           </div>
         </div>
 
+        {/* ── INSIGHT SECTION ── */}
+        {thinkingItems.length >= 3 && (
+          <div style={styles.insightSection}>
+            <div style={styles.sectionLabel}>提炼核心观点</div>
+
+            {!insightFetched && !loadingInsights && (
+              <div style={{ textAlign: "center", padding: "8px 0 16px" }}>
+                <button
+                  style={styles.insightDiscoverBtn}
+                  onClick={fetchInsights}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(201,169,92,0.08)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  发现我的观点
+                </button>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text-tertiary)",
+                    opacity: 0.6,
+                    marginTop: 8,
+                  }}
+                >
+                  AI 会从你确定的思考中提炼核心论述
+                </div>
+              </div>
+            )}
+
+            {loadingInsights && (
+              <div style={styles.loadingCard}>
+                <span>正在提炼你的核心观点</span>
+                <span style={{ opacity: 0.5 }}>···</span>
+              </div>
+            )}
+
+            {insightFetched &&
+              insights.map((ins, i) => (
+                <div
+                  key={i}
+                  style={
+                    ins.confirmed
+                      ? styles.insightConfirmedCard
+                      : styles.insightCard
+                  }
+                >
+                  <div style={styles.insightText}>{ins.text}</div>
+                  <div style={styles.insightSource}>
+                    来源：{ins.source}
+                  </div>
+                  {!ins.confirmed && (
+                    <div style={styles.insightActions}>
+                      <button
+                        style={styles.insightConfirmBtn}
+                        onClick={() => confirmInsight(i)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "var(--gold-hover)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "var(--gold)";
+                        }}
+                      >
+                        确认
+                      </button>
+                      <button
+                        style={styles.insightSkipBtn}
+                        onClick={() => skipInsight(i)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.opacity = "1";
+                          e.currentTarget.style.color = "var(--text-secondary)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.opacity = "0.7";
+                          e.currentTarget.style.color = "var(--text-tertiary)";
+                        }}
+                      >
+                        略过
+                      </button>
+                    </div>
+                  )}
+                  {ins.confirmed && (
+                    <div style={styles.insightActions}>
+                      <button
+                        style={{
+                          ...styles.insightConfirmBtn,
+                          background: "transparent",
+                          color: "var(--gold)",
+                          border: "1px solid var(--gold)",
+                        }}
+                        onClick={() => confirmInsight(i)}
+                      >
+                        已确认 · 取消
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+            {insightFetched && insights.length === 0 && (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "var(--text-tertiary)",
+                  textAlign: "center",
+                  padding: "12px 0",
+                }}
+              >
+                暂时无法提炼观点，请尝试确定更多思考方向
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── IDEAS SECTION ── */}
         <div style={styles.ideasSection}>
           <div style={styles.sectionLabel}>素材与想法</div>
@@ -822,7 +1080,11 @@ export default function DiscoverPage() {
         </div>
         {!canGenerate && questions.length > 0 && (
           <div style={styles.generatingText}>
-            需要至少确定 3 个思考方向并有素材后，才能生成文章结构
+            {thinkingItems.length < 3
+              ? "需要至少确定 3 个思考方向"
+              : confirmedInsights.length < 2
+              ? "需要至少确认 2 个核心观点后才能生成文章结构"
+              : ""}
           </div>
         )}
         {generating && (

@@ -34,6 +34,10 @@ function getMockQuestions(anchor: string): string[] {
     "有没有一个你已经默认接受但从未审视过的前提？",
     "最让你感到困惑或不确定的部分是什么？",
     "有没有一种'第三种可能'，既不是A也不是B？",
+    // Principle 3 closing questions — help user know they're done
+    "你觉得我们已经找到足够的方向了吗？",
+    "在这些思考中，哪个观点最让你感到意外？",
+    "如果把刚才的讨论浓缩成一句话，会是什么？",
   ];
 
   // Seed-based shuffle for consistent variety per anchor
@@ -69,7 +73,12 @@ export async function POST(request: NextRequest) {
     // Real mode: use DeepSeek
     const client = createClient();
 
-    const systemPrompt = `你是苏格拉底式的思维伙伴。你的任务不是回答问题，而是通过提问帮助用户发现他们真正想表达的东西。每次回复3-4个问题。问题应该开放、深入、挑战假设。不要打招呼，不要总结，不要给出观点。只输出问题，每行一个，不要编号。`;
+    const systemPrompt = `你是 Mentor，不是 Assistant。你的三个原则：
+1. 绝不抢答案。用户问问题，你用问题回应，引导用户自己找到答案。
+2. 不断提高思考层级。从具体现象上升到抽象问题，从个人经历上升到普遍规律。
+3. 知道什么时候闭嘴。对话超过3轮后，开始帮助用户总结而不是继续发散。最后一轮应该问：'你觉得我们已经找到足够的方向了吗？'
+
+每次回复3-4个问题。问题应该让用户自己发现答案。不要打招呼，不要总结，不要给出观点。只输出问题，每行一个，不要编号。`;
 
     const historyText = history?.length
       ? "\n\n之前的对话：\n" + history.map((m) => `${m.role === "user" ? "用户" : "你"}: ${m.content}`).join("\n")
