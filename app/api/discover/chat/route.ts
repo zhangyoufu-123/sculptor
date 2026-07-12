@@ -7,50 +7,150 @@ export const maxDuration = 30;
 
 // ── Mock: Socratic questions based on anchor topic ──────────
 
-const MOCK_QUESTIONS: Record<string, string[]> = {
-  default: [
-    "你真正想解决的问题是什么？",
-    "为什么会想到这个话题？它对你意味着什么？",
-    "有没有一个具体的例子或场景能说明你的关切？",
-    "如果从相反的角度看，你会怎么描述这个问题？",
-  ],
-};
+/**
+ * Extract meaningful keywords from Chinese anchor text.
+ * Splits by common delimiters and prioritizes nouns/verbs over particles.
+ */
+function extractKeywords(text: string): string[] {
+  // Split by common Chinese delimiters and punctuation
+  const segments = text.split(/的|是|为什么|怎么|什么|？|\?|，|,|、|和|与|或|了|吗|呢|吧|在|把|被|让|对|从|到/);
 
-function getMockQuestions(anchor: string): string[] {
-  // Use anchor to seed variety
-  const pool = [
-    "你真正想解决的问题是什么？",
-    "为什么会想到这个话题？它对你意味着什么？",
-    "有没有一个具体的例子或场景能说明你的关切？",
-    "如果从相反的角度看，你会怎么描述这个问题？",
-    "你希望读者读完你的文章后，产生什么样的感受或行动？",
-    "这个问题背后，有没有一个更深层的问题？",
-    "你的观点中，哪个部分最容易被质疑？为什么？",
-    "这个问题是最近才出现的，还是已经存在了很久？",
-    "有没有人持完全相反的立场？他们的理由可能是什么？",
-    "如果只能用一个比喻来描述这个问题，你会用什么？",
-    "这个问题的核心矛盾是什么？",
-    "你个人与这个话题有什么关联？这种关联会影响你的立场吗？",
-    "有没有一个你已经默认接受但从未审视过的前提？",
-    "最让你感到困惑或不确定的部分是什么？",
-    "有没有一种'第三种可能'，既不是A也不是B？",
-    // Principle 3 closing questions — help user know they're done
-    "你觉得我们已经找到足够的方向了吗？",
-    "在这些思考中，哪个观点最让你感到意外？",
-    "如果把刚才的讨论浓缩成一句话，会是什么？",
-  ];
-
-  // Seed-based shuffle for consistent variety per anchor
-  let seed = 0;
-  for (let i = 0; i < anchor.length; i++) seed = (seed * 31 + anchor.charCodeAt(i)) | 0;
-
-  const shuffled = [...pool];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = ((seed >> (i % 8)) & 0x7fffffff) % (i + 1);
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  const words: string[] = [];
+  for (const seg of segments) {
+    const trimmed = seg.trim();
+    if (!trimmed) continue;
+    // Extract meaningful word segments (2-6 chars) — skip single chars
+    if (trimmed.length >= 2 && trimmed.length <= 6) {
+      words.push(trimmed);
+    } else if (trimmed.length > 6) {
+      // Break longer segments into 2-4 char chunks
+      for (let i = 0; i < trimmed.length - 1; i += 2) {
+        const chunk = trimmed.slice(i, Math.min(i + 4, trimmed.length));
+        if (chunk.length >= 2 && !words.includes(chunk)) words.push(chunk);
+      }
+    }
   }
 
-  return shuffled.slice(0, 3 + (Math.abs(seed) % 2)); // 3-4 questions
+  // Deduplicate and limit to 2-6 key terms, preferring longer terms
+  const unique = [...new Set(words)];
+  unique.sort((a, b) => b.length - a.length);
+  return unique.slice(0, 6);
+}
+
+/**
+ * Detect the domain of the anchor text to pick appropriate question templates.
+ */
+function detectDomain(keywords: string[]): "tech" | "society" | "general" {
+  const techSignals = [
+    "AI", "人工智能", "算法", "技术", "产品", "代码", "程序", "模型",
+    "数据", "互联网", "软件", "硬件", "系统", "架构", "接口", "协议",
+    "自动化", "智能", "机器人", "机器学习", "深度学习", "神经网络",
+  ];
+  const societySignals = [
+    "社会", "文化", "政治", "经济", "教育", "制度", "阶级", "群体",
+    "历史", "传统", "价值观", "伦理", "道德", "法律", "权力", "权利",
+    "公平", "自由", "平等", "现象", "趋势", "时代", "代际",
+  ];
+
+  const allWords = keywords.join(" ");
+  const techScore = techSignals.filter((s) => allWords.includes(s)).length;
+  const societyScore = societySignals.filter((s) => allWords.includes(s)).length;
+
+  if (techScore > societyScore && techScore > 0) return "tech";
+  if (societyScore > techScore && societyScore > 0) return "society";
+  return "general";
+}
+
+/**
+ * Generate questions that specifically reference keywords from the user's anchor text.
+ * Uses 5 question patterns depending on conversation round.
+ */
+function getMockQuestions(anchor: string, history?: { role: string; content: string }[]): string[] {
+  const topic = anchor?.trim() || "这个话题";
+  const keywords = extractKeywords(topic);
+  const domain = detectDomain(keywords);
+  const roundCount = history?.filter((m) => m.role === "user").length || 0;
+
+  // If no keywords extracted (very short anchor), use one keyword = the anchor itself
+  const kws = keywords.length > 0 ? keywords : [topic];
+
+  const questions: string[] = [];
+
+  // Pattern 1: Challenge assumption (always include one)
+  if (domain === "tech") {
+    questions.push(
+      `{0}这种设计，是解决了一个真问题，还是创造了一个假需求？`.replace("{0}", kws[0])
+    );
+  } else if (domain === "society") {
+    questions.push(
+      `{0}这个现象背后，是什么样的社会结构在推动？`.replace("{0}", kws[0])
+    );
+  } else {
+    questions.push(
+      `你提到{0}——在你看来，这个问题的核心矛盾到底是什么？`.replace("{0}", kws[0])
+    );
+  }
+
+  // Pattern 2: Ask for a specific example
+  if (kws.length >= 2) {
+    questions.push(
+      `说到{0}，能举一个具体的例子吗？不是抽象描述，是一个真实场景。`.replace("{0}", kws[1])
+    );
+  } else {
+    questions.push(
+      `关于{0}，有没有一个具体的场景或案例能说明你的关切？`.replace("{0}", kws[0])
+    );
+  }
+
+  // Pattern 3: Explore counter-perspective
+  if (domain === "tech") {
+    const kw = kws.length >= 2 ? kws[1] : kws[0];
+    questions.push(
+      `除了{0}，有没有完全不同的技术路径可以实现同样的目标？`.replace("{0}", kw)
+    );
+  } else if (domain === "society") {
+    const kw = kws.length >= 2 ? kws[1] : kws[0];
+    questions.push(
+      `如果把{0}放在更长的历史维度中，它只是暂时的还是永久的？`.replace("{0}", kw)
+    );
+  } else {
+    const kw = kws.length >= 3 ? kws[2] : kws[0];
+    questions.push(
+      `如果{0}的反面才是真相，你会怎么论证？`.replace("{0}", kw)
+    );
+  }
+
+  // Pattern 4: Based on conversation round
+  if (roundCount < 3) {
+    // Early rounds: elevate thinking level
+    if (kws.length >= 3) {
+      questions.push(
+        `你说到{0}和{1}，这两者之间有没有更深层的联系？`.replace("{0}", kws[0]).replace("{1}", kws[Math.min(kws.length - 1, 2)])
+      );
+    } else if (kws.length >= 2) {
+      questions.push(
+        `在{0}这个问题上，有没有一个你已经默认接受但从未审视过的前提？`.replace("{0}", kws[0])
+      );
+    } else {
+      questions.push(
+        `关于{0}，你内心里有没有一个不敢说的观点？`.replace("{0}", kws[0])
+      );
+    }
+  } else {
+    // Later rounds: closing / summarizing questions (Principle 3)
+    if (kws.length >= 2) {
+      questions.push(
+        `回顾关于{0}和{1}的讨论，你觉得我们已经找到足够的方向了吗？`.replace("{0}", kws[0]).replace("{1}", kws[1])
+      );
+    } else {
+      questions.push(
+        `经过这些讨论，如果把关于{0}的思考浓缩成一句话，会是什么？`.replace("{0}", kws[0])
+      );
+    }
+  }
+
+  // Ensure exactly 3-4 questions
+  return questions.slice(0, 4);
 }
 
 // ── POST /api/discover/chat ──────────────────────────────────
@@ -65,9 +165,9 @@ export async function POST(request: NextRequest) {
 
     const topic = anchor?.trim() || "这个话题";
 
-    // Mock mode: return seeded questions
+    // Mock mode: return keyword-aware questions
     if (isMockMode()) {
-      return Response.json({ questions: getMockQuestions(topic) });
+      return Response.json({ questions: getMockQuestions(topic, history) });
     }
 
     // Real mode: use DeepSeek
