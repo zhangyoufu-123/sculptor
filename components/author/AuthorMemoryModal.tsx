@@ -2,23 +2,26 @@
 
 import { useEffect, useState } from "react";
 
+const STORAGE_KEY = "sculptor-writing-rules";
+
 interface AuthorMemoryModalProps {
   onClose: () => void;
 }
 
 export default function AuthorMemoryModal({ onClose }: AuthorMemoryModalProps) {
-  const [memory, setMemory] = useState<Record<string, unknown> | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [rules, setRules] = useState("");
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch("/api/author/memory")
-      .then((r) => r.json())
-      .then((data) => {
-        setMemory(data.memory || data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) setRules(stored);
+    setLoaded(true);
   }, []);
+
+  const handleSave = (value: string) => {
+    setRules(value);
+    localStorage.setItem(STORAGE_KEY, value);
+  };
 
   return (
     <div
@@ -33,61 +36,46 @@ export default function AuthorMemoryModal({ onClose }: AuthorMemoryModalProps) {
         style={{
           background: "var(--bg-elevated)", borderRadius: 12,
           border: "1px solid var(--gold)", padding: 24,
-          maxWidth: 480, width: "90%", maxHeight: "80vh", overflow: "auto",
+          maxWidth: 520, width: "90%", maxHeight: "80vh", display: "flex",
+          flexDirection: "column",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <span style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>🧠 作者记忆</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>写作规则</span>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-tertiary)", fontSize: 18, cursor: "pointer" }}>×</button>
         </div>
 
-        {loading ? (
+        <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 8 }}>
+          像 Cursor Rules 一样，写下你的写作规则。每行一条。保存后 AI 会自动遵守。
+        </div>
+
+        {!loaded ? (
           <div style={{ color: "var(--text-tertiary)", fontSize: 13, textAlign: "center", padding: 24 }}>加载中...</div>
-        ) : memory ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <MemorySection title="偏好" items={memory.preferences as string[]} color="var(--gold)" />
-            <MemorySection title="厌恶" items={memory.dislikes as string[]} color="var(--error)" />
-            <MemorySection title="习惯" items={memory.habits as string[]} color="var(--color-accent-warm)" />
-            {Array.isArray(memory.forbiddenExpressions) && (memory.forbiddenExpressions as string[]).length > 0 && (
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--error)", marginBottom: 4 }}>🚫 禁用表达</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  {(memory.forbiddenExpressions as string[]).map((e, i) => (
-                    <span key={i} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "rgba(224,85,85,0.1)", color: "var(--error)" }}>
-                      {e}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         ) : (
-          <div style={{ color: "var(--text-tertiary)", fontSize: 13, textAlign: "center", padding: 24 }}>
-            暂无作者记忆数据
-          </div>
+          <textarea
+            value={rules}
+            onChange={(e) => handleSave(e.target.value)}
+            placeholder={`避免口语
+不要使用：首先、其次、最后
+不要总结
+引用APA格式`}
+            style={{
+              width: "100%", minHeight: 240, resize: "vertical",
+              background: "var(--bg-input, var(--bg-primary))",
+              border: "1px solid var(--border-light)", borderRadius: 8,
+              padding: 12, fontSize: 13, fontFamily: "var(--font-mono, monospace)",
+              color: "var(--text-primary)", lineHeight: 1.7,
+              outline: "none",
+            }}
+            spellCheck={false}
+          />
         )}
 
-        <div style={{ marginTop: 20, fontSize: 10, color: "var(--text-tertiary)", opacity: 0.5, textAlign: "center" }}>
-          AI 会根据你的作者记忆调整写作风格
+        <div style={{ marginTop: 12, fontSize: 10, color: "var(--text-tertiary)", opacity: 0.5, textAlign: "center" }}>
+          规则已自动保存到本地 · 按键 &quot;sculptor-writing-rules&quot;
         </div>
       </div>
-    </div>
-  );
-}
-
-function MemorySection({ title, items, color }: { title: string; items: string[]; color: string }) {
-  if (!items || items.length === 0) return null;
-  return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color, marginBottom: 4 }}>{title}</div>
-      <ul style={{ margin: 0, paddingLeft: 16 }}>
-        {items.map((item, i) => (
-          <li key={i} style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 2 }}>
-            {item}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

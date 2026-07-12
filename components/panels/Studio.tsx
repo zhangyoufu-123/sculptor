@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useCallback } from "react";
 import type { EchoWallState, InspirationItem } from "@/hooks/useEchoWall";
 
 // ── Codex-inspired design tokens (warm-tone adaptation) ────
@@ -16,6 +16,8 @@ interface StudioProps {
   onFeedback?: (type: "diagnosis" | "inspiration", id: string, helpful: boolean) => void;
   nodeCount?: number;
   wordCount?: number;
+  hasNotes?: boolean;
+  hasReferences?: boolean;
 }
 
 export default function Studio({
@@ -25,6 +27,8 @@ export default function Studio({
   onFeedback,
   nodeCount = 0,
   wordCount = 0,
+  hasNotes = false,
+  hasReferences = false,
 }: StudioProps) {
   const {
     currentParagraph,
@@ -40,6 +44,23 @@ export default function Studio({
   } = state;
 
   const [activeTab, setActiveTab] = useState<"notes" | "refs" | "ai">("notes");
+  const [tabUsage, setTabUsage] = useState({ notesUsed: false, refsUsed: false, aiUsed: false });
+
+  // Derive usage from both props and internal state
+  const notesUsed = hasNotes || tabUsage.notesUsed;
+  const refsUsed = hasReferences || tabUsage.refsUsed;
+
+  // Compute which tabs are visible
+  const visibleTabs = useMemo(() => {
+    const tabs: Array<"notes" | "refs" | "ai"> = [];
+    if (notesUsed) tabs.push("notes");
+    if (refsUsed) tabs.push("refs");
+    if (tabUsage.aiUsed) tabs.push("ai");
+    return tabs;
+  }, [notesUsed, refsUsed, tabUsage.aiUsed]);
+
+  // Ensure activeTab is always valid
+  const effectiveTab = visibleTabs.includes(activeTab) ? activeTab : visibleTabs[0] || activeTab;
 
   // Determine which diagnosis to show
   const activeDiagnosis = selectionAnalysis || diagnosis;
@@ -47,6 +68,39 @@ export default function Studio({
 
   // Auto-switch to AI tab when user summons it (selection or pause suggests intent)
   const lastManualSwitch = useRef(0);
+
+  // Wrap onAcceptInspiration to track AI usage
+  const handleAcceptInspiration = useCallback(
+    (id: string) => {
+      setTabUsage((prev) => ({ ...prev, aiUsed: true }));
+      onAcceptInspiration?.(id);
+    },
+    [onAcceptInspiration]
+  );
+
+  // No tabs used yet — show friendly empty state
+  if (visibleTabs.length === 0) {
+    return (
+      <div style={containerStyle}>
+        <Header isPaused={isPaused} pauseDuration={pauseDuration} />
+        <div style={{
+          flex: 1, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          padding: "32px 20px", gap: 12,
+        }}>
+          <span style={{ fontSize: 32, opacity: 0.35 }}>✨</span>
+          <span style={{
+            fontSize: 12, color: "var(--text-tertiary)",
+            textAlign: "center", lineHeight: 1.7,
+            maxWidth: 220,
+          }}>
+            开始写作，Studio 会随着你的使用逐渐展开
+          </span>
+        </div>
+        <Footer nodeCount={nodeCount} wordCount={wordCount} />
+      </div>
+    );
+  }
 
   return (
     <div style={containerStyle}>
@@ -61,15 +115,15 @@ export default function Studio({
         display: "flex", borderBottom: "1px solid var(--border-light)",
         background: "var(--bg-tertiary)", padding: "0 8px",
       }}>
-        {(["notes", "refs", "ai"] as const).map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab}
             onClick={() => { setActiveTab(tab); lastManualSwitch.current = Date.now(); }}
             style={{
               padding: "6px 12px", border: "none", background: "transparent",
-              color: activeTab === tab ? "var(--gold)" : "var(--text-tertiary)",
-              fontSize: 11, fontWeight: activeTab === tab ? 600 : 400,
-              cursor: "pointer", borderBottom: activeTab === tab ? "2px solid var(--gold)" : "2px solid transparent",
+              color: effectiveTab === tab ? "var(--gold)" : "var(--text-tertiary)",
+              fontSize: 11, fontWeight: effectiveTab === tab ? 600 : 400,
+              cursor: "pointer", borderBottom: effectiveTab === tab ? "2px solid var(--gold)" : "2px solid transparent",
               transition: "all 0.15s ease", fontFamily: "var(--font-ui)",
             }}
           >
@@ -80,7 +134,7 @@ export default function Studio({
 
       {/* ── Scrollable content ──────────────────────────── */}
       <div style={scrollStyle}>
-        {activeTab === "notes" && (
+        {effectiveTab === "notes" && (
           <div style={emptyTabStyle}>
             <span style={{ fontSize: 28, opacity: 0.4 }}>📝</span>
             <span style={{ fontSize: 11, color: "var(--text-tertiary)", textAlign: "center" }}>
@@ -91,7 +145,7 @@ export default function Studio({
           </div>
         )}
 
-        {activeTab === "refs" && (
+        {effectiveTab === "refs" && (
           <div style={emptyTabStyle}>
             <span style={{ fontSize: 28, opacity: 0.4 }}>📚</span>
             <span style={{ fontSize: 11, color: "var(--text-tertiary)", textAlign: "center" }}>
@@ -102,7 +156,7 @@ export default function Studio({
           </div>
         )}
 
-        {activeTab === "ai" && (
+        {effectiveTab === "ai" && (
           <>
         {/* Status bar */}
         <StatusBar
@@ -122,7 +176,7 @@ export default function Studio({
         <InspirationStream
           inspirations={inspirations}
           onDismiss={onDismissInspiration}
-          onAccept={onAcceptInspiration}
+          onAccept={handleAcceptInspiration}
           onFeedback={onFeedback ? (id: string, helpful: boolean) => onFeedback("inspiration", id, helpful) : undefined}
         />
           </>

@@ -69,7 +69,7 @@ export default function Home() {
       >
         <span
           style={{ fontSize: 12, color: "var(--text-tertiary)", cursor: "pointer" }}
-          onClick={() => router.push("/architect")}
+          onClick={() => router.push("/write")}
         >
           架构画布
         </span>
@@ -142,7 +142,7 @@ export default function Home() {
 
         {/* Primary CTA */}
         <button
-          onClick={() => router.push("/architect")}
+          onClick={() => router.push("/write")}
           style={{
             padding: "14px 48px",
             fontSize: 16,
@@ -179,7 +179,7 @@ export default function Home() {
           }}
         >
           <span
-            onClick={() => router.push("/architect")}
+            onClick={() => router.push("/write")}
             style={{
               fontSize: 13,
               color: "var(--text-tertiary)",
@@ -218,7 +218,7 @@ export default function Home() {
         {/* ── Continue writing prompt (if architecture exists) ── */}
         {hasArch && (
           <div
-            onClick={() => router.push("/architect")}
+            onClick={() => router.push("/write")}
             style={{
               marginTop: 48,
               padding: "16px 24px",

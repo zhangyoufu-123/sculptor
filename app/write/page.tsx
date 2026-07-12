@@ -16,8 +16,8 @@ import { useGhostText } from "@/hooks/useGhostText";
 import { useEchoWall } from "@/hooks/useEchoWall";
 import { useUIStore } from "@/lib/store";
 import type { Intent, SuggestionOption, StreamEvent, SaveStatus, StyleProfileData, MasterQuote, SearchResult } from "@/types/editor";
-import type { ArchitectNode } from "@/types/architect";
-import { loadArchitecture } from "@/lib/local-store";
+import type { ArchNode, ArchitectNode } from "@/types/architect";
+import { loadArchitecture, saveArchitecture } from "@/lib/local-store";
 
 const WRITE_TIMEOUT_MS = 45000;
 const AUTOSAVE_DELAY_MS = 2000;
@@ -38,6 +38,14 @@ export default function WritePage() {
   const [authorMemoryOpen, setAuthorMemoryOpen] = useState(false);
   const [editorContent, setEditorContent] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
+
+  // Empty editor prompt
+  const [emptyPromptValue, setEmptyPromptValue] = useState("");
+
+  // Structure offer after 300 chars
+  const [structureOfferDismissed, setStructureOfferDismissed] = useState(false);
+  const [isGeneratingStructure, setIsGeneratingStructure] = useState(false);
+  const structureOfferTriggerAt = useRef<number | null>(null);
 
   // v7.0 Studio engine
   const echoWall = useEchoWall({
@@ -147,6 +155,81 @@ export default function WritePage() {
     setStyleProfile({ tone: p.tone, avg_sentence_length: p.avg_sentence_length, common_imagery: p.common_imagery, formality: String(p.formality), keywords: p.keywords });
   }, [setStyleProfile]);
 
+  // ── Empty state & structure offer ──────────────────────────
+  const charCount = editorContent.length;
+  const isEmpty = editorContent.trim() === "";
+  const hasArchitecture = skeletonNodes.length > 0;
+
+  // Structure offer visibility: show at >=300 chars, hide on dismiss or further typing
+  const showStructureOffer = (() => {
+    if (charCount < 300) {
+      structureOfferTriggerAt.current = null;
+      return false;
+    }
+    if (structureOfferDismissed) return false;
+    if (hasArchitecture) return false;
+    if (isGeneratingStructure) return false;
+    if (structureOfferTriggerAt.current === null) {
+      structureOfferTriggerAt.current = charCount;
+      return true;
+    }
+    // Auto-dismiss when user continues typing past the trigger point
+    if (charCount > structureOfferTriggerAt.current) return false;
+    return true;
+  })();
+
+  // Reset dismissal when content drops below 300 (user cleared text)
+  useEffect(() => {
+    if (charCount < 300) {
+      setStructureOfferDismissed(false);
+      structureOfferTriggerAt.current = null;
+    }
+  }, [charCount]);
+
+  // Generate architecture from written content
+  const handleGenerateStructure = useCallback(async () => {
+    if (!editorRef.current) return;
+    setIsGeneratingStructure(true);
+    try {
+      const text = editorRef.current.getText();
+      const res = await fetch("/api/architect/from-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text, title: documentTitle }),
+      });
+      if (!res.ok) throw new Error("Failed to generate structure");
+      const data = await res.json();
+      if (data.nodes?.length) {
+        // Convert API response to ArchNode format and save
+        const archNodes: ArchNode[] = data.nodes.map((n: any, i: number) => ({
+          id: n.id || `n${i + 1}`,
+          type: n.type || "custom",
+          title: n.label || n.title || "Untitled",
+          summary: n.notes || "",
+          parent: null,
+          children: n.children || [],
+          order: i,
+          isExpanded: true,
+        }));
+        saveArchitecture(archNodes);
+        // Update local state for StructureMap display
+        setSkeletonNodes(data.nodes.map((n: any) => ({
+          id: n.id,
+          label: n.label || n.title,
+          type: n.type || "custom",
+          position: n.position || { x: 0, y: 0 },
+          children: n.children || [],
+          notes: n.notes,
+        })));
+      }
+    } catch (err) {
+      console.error("Failed to generate structure:", err);
+    } finally {
+      setIsGeneratingStructure(false);
+      setStructureOfferDismissed(true);
+    }
+  }, [documentTitle]);
+
   const leftW = leftPanel === "open" ? "280px" : "48px";
   const rightW = rightPanel === "open" ? "320px" : "48px";
 
@@ -156,12 +239,63 @@ export default function WritePage() {
       {/* v7.0: Author Memory quick access */}
       <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 16px", background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-light)", gap: 8 }}>
         <button onClick={() => setAuthorMemoryOpen(true)} style={{ background: "none", border: "none", color: "var(--text-tertiary)", fontSize: 11, cursor: "pointer", fontFamily: "var(--font-ui)" }}>
-          🧠 作者记忆
+          写作规则
         </button>
       </div>
 
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        {/* LEFT: Structure Map */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
+        {/* EMPTY STATE: centered prompt when no content and no architecture */}
+        {isEmpty && !hasArchitecture ? (
+          <div style={{
+            flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+            background: "var(--bg-primary)",
+          }}>
+            <div style={{ textAlign: "center", maxWidth: 480, width: "100%", padding: "0 24px" }}>
+              <h2 style={{
+                fontSize: 28, fontWeight: 700, marginBottom: 8,
+                color: "var(--text-primary)", fontFamily: "var(--font-ui)",
+                letterSpacing: "0.02em",
+              }}>
+                今天想写什么？
+              </h2>
+              <p style={{
+                fontSize: 14, color: "var(--text-tertiary)", marginBottom: 24,
+                fontFamily: "var(--font-ui)",
+              }}>
+                输入主题，AI 帮你展开思路
+              </p>
+              <input
+                type="text"
+                value={emptyPromptValue}
+                onChange={(e) => setEmptyPromptValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && emptyPromptValue.trim()) {
+                    if (editorRef.current) {
+                      editorRef.current.chain().focus().insertContent(emptyPromptValue).run();
+                    }
+                    setEmptyPromptValue("");
+                  }
+                }}
+                placeholder="例如：AI 会取代作家吗？"
+                autoFocus
+                style={{
+                  width: "100%", padding: "14px 18px", fontSize: 16,
+                  background: "var(--bg-secondary)", color: "var(--text-primary)",
+                  border: "2px solid var(--border-light)", borderRadius: 12,
+                  outline: "none", fontFamily: "var(--font-ui)",
+                  transition: "border-color 0.2s",
+                }}
+                onFocus={(e) => { e.target.style.borderColor = "var(--accent-gold)"; }}
+                onBlur={(e) => { e.target.style.borderColor = "var(--border-light)"; }}
+              />
+            </div>
+          </div>
+        ) : (
+          <></>
+        )}
+
+        {/* LEFT: Structure Map (hidden when empty with no architecture) */}
+        {(!isEmpty || hasArchitecture) && (
         <div style={{ width: leftW, flexShrink: 0, background: "var(--bg-secondary)", borderRight: "1px solid var(--border-light)", display: "flex", flexDirection: "column", transition: "width 0.3s", overflow: "hidden" }}>
           {leftPanel === "open" ? (
             <>
@@ -198,17 +332,62 @@ export default function WritePage() {
             </div>
           )}
         </div>
+        )}
 
-        {/* CENTER: Editor */}
-        <main style={{ flex: 1, display: "flex", justifyContent: "center", overflow: "auto", position: "relative" }}>
+        {/* CENTER: Editor (always mounted so refs work, hidden when empty prompt showing) */}
+        <main style={{ flex: 1, display: isEmpty && !hasArchitecture ? "none" : "flex", justifyContent: "center", overflow: "auto", position: "relative" }}>
           <div style={{ width: "100%", maxWidth: "680px" }}>
             <EditorCanvas onEditorReady={handleEditorReady} onBlankDoubleClick={() => setCommandPaletteOpen(true)} ghostCandidates={ghostCandidates} ghostActiveIndex={ghostActiveIndex} isGhostLoading={isGhostLoading} />
           </div>
           <AIBubble onIntent={handleIntent} />
           <SuggestionPreview editor={editorRef.current} intent={currentIntent} onDone={() => triggerAutosave()} />
+
+          {/* Structure offer floating prompt */}
+          {showStructureOffer && (
+            <div style={{
+              position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+              zIndex: 100, maxWidth: 500, width: "calc(100% - 48px)",
+              background: "var(--bg-primary)", border: "1.5px solid var(--accent-gold, #c9a95c)",
+              borderRadius: 12, padding: "14px 18px",
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+              boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
+              animation: "fadeInUp 0.3s ease",
+            }}>
+              <span style={{ fontSize: 14, color: "var(--text-primary)", fontFamily: "var(--font-ui)", fontWeight: 500 }}>
+                ✨ 是否整理为结构？
+              </span>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button
+                  onClick={handleGenerateStructure}
+                  disabled={isGeneratingStructure}
+                  style={{
+                    padding: "6px 14px", fontSize: 13, fontWeight: 600,
+                    background: "var(--accent-gold, #c9a95c)", color: "#fff",
+                    border: "none", borderRadius: 8, cursor: "pointer",
+                    fontFamily: "var(--font-ui)", whiteSpace: "nowrap",
+                    opacity: isGeneratingStructure ? 0.6 : 1,
+                  }}
+                >
+                  {isGeneratingStructure ? "生成中…" : "整理为结构"}
+                </button>
+                <button
+                  onClick={() => { setStructureOfferDismissed(true); }}
+                  style={{
+                    padding: "6px 10px", fontSize: 13,
+                    background: "transparent", color: "var(--text-tertiary)",
+                    border: "none", cursor: "pointer", fontFamily: "var(--font-ui)",
+                  }}
+                  aria-label="关闭"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
         </main>
 
-        {/* RIGHT: Studio */}
+        {/* RIGHT: Studio (hidden when empty with no architecture) */}
+        {(!isEmpty || hasArchitecture) && (
         <div style={{ width: rightW, flexShrink: 0, background: "var(--bg-secondary)", borderLeft: "1px solid var(--border-light)", display: "flex", flexDirection: "column", transition: "width 0.3s", overflow: "hidden" }}>
           {rightPanel === "open" ? (
             <>
@@ -247,6 +426,7 @@ export default function WritePage() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       <StyleSetup isOpen={styleOpen} onClose={() => setStyleOpen(false)} onProfileSaved={handleStyleSaved} />
