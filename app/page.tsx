@@ -193,24 +193,6 @@ export default function Home() {
               继续上次思考
             </span>
           )}
-          {savedStateExists && (
-            <span style={{ color: "var(--border)", userSelect: "none" }}>·</span>
-          )}
-          <span
-            onClick={() => router.push("/rules")}
-            style={{
-              cursor: "pointer",
-              transition: "color 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = "var(--accent-gold)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = "var(--text-tertiary)";
-            }}
-          >
-            写作规则
-          </span>
         </div>
       </div>
     </div>
