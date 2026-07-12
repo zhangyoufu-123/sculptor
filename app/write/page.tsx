@@ -9,7 +9,6 @@ import SuggestionPreview from "@/components/SuggestionPreview";
 import CommandPalette from "@/components/CommandPalette";
 import Studio from "@/components/panels/Studio";
 import StyleSetup from "@/components/StyleSetup";
-import SocraticPanel from "@/components/panels/SocraticPanel";
 import StructureMap from "@/components/panels/StructureMap";
 import ParagraphCards from "@/components/panels/ParagraphCards";
 import AuthorMemoryModal from "@/components/author/AuthorMemoryModal";
@@ -30,7 +29,6 @@ export default function WritePage() {
   const editorRef = useRef<Editor | null>(null);
   const [leftPanel, setLeftPanel] = useState<PanelState>("open");
   const [rightPanel, setRightPanel] = useState<PanelState>("open");
-  const [socraticOpen, setSocraticOpen] = useState(false);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
   const [documentTitle, setDocumentTitle] = useState("无标题");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
@@ -335,7 +333,7 @@ export default function WritePage() {
       <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 16px", background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-light)" }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button onClick={() => setAuthorMemoryOpen(true)} style={{ background: "none", border: "none", color: "var(--text-tertiary)", fontSize: 11, cursor: "pointer", fontFamily: "var(--font-ui)" }}>
-            写作规则
+            思维偏好
           </button>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -430,16 +428,16 @@ export default function WritePage() {
               <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>结构地图</span>
                 <div style={{ display: "flex", gap: 4 }}>
-                  <button onClick={() => window.location.href = "/architect"} style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", fontSize: 11 }}>编辑架构</button>
+                  <button onClick={() => window.location.href = "/discover"} style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", fontSize: 11 }}>编辑大纲</button>
                   <button className="btn-icon" onClick={() => setLeftPanel("collapsed")} aria-label="折叠" style={{ width: 24, height: 24 }}>◁</button>
                 </div>
               </div>
               <div style={{ flex: 1, overflow: "auto", padding: "8px" }}>
                 {skeletonNodes.length === 0 ? (
                   <div style={{ color: "var(--text-tertiary)", fontSize: 12, textAlign: "center", padding: 24 }}>
-                    <p style={{ marginBottom: 12 }}>无架构</p>
-                    <a href="/architect" className="btn-primary" style={{ display: "inline-block", fontSize: 12, padding: "6px 14px", minHeight: 32, textDecoration: "none", color: "var(--text-inverse)" }}>创建架构</a>
-                    <p style={{ marginTop: 12, fontSize: 11 }}>AI 将基于已写内容自动生成建议架构</p>
+                    <p style={{ marginBottom: 12 }}>无大纲</p>
+                    <a href="/discover" className="btn-primary" style={{ display: "inline-block", fontSize: 12, padding: "6px 14px", minHeight: 32, textDecoration: "none", color: "var(--text-inverse)" }}>创建大纲</a>
+                    <p style={{ marginTop: 12, fontSize: 11 }}>AI 将基于已写内容自动生成建议大纲</p>
                   </div>
                 ) : (
                   <ParagraphCards
@@ -448,7 +446,7 @@ export default function WritePage() {
                     editorContent={editorContent}
                     onSelectNode={setActiveNodeId}
                     onAIExpandNode={(nodeId, label) => {
-                      window.location.href = `/architect?action=expand&node=${encodeURIComponent(label)}`;
+                      window.location.href = `/discover?action=expand&node=${encodeURIComponent(label)}`;
                     }}
                     onUpdateNodeNotes={handleUpdateNodeNotes}
                     onUpdateNodeLabel={handleUpdateNodeLabel}
@@ -561,7 +559,6 @@ export default function WritePage() {
               <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Studio</span>
                 <div style={{ display: "flex", gap: 4 }}>
-                  <button className="btn-icon" onClick={() => setSocraticOpen(true)} aria-label="追问" style={{ width: 24, height: 24 }}>💭</button>
                   <button className="btn-icon" onClick={() => setRightPanel("collapsed")} aria-label="折叠" style={{ width: 24, height: 24 }}>▷</button>
                 </div>
               </div>
@@ -598,7 +595,6 @@ export default function WritePage() {
 
       <StyleSetup isOpen={styleOpen} onClose={() => setStyleOpen(false)} onProfileSaved={handleStyleSaved} />
       <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onExecute={(intent, param) => { if (intent === "custom") { handleIntent("custom" as any, param); } else { handleIntent(intent as any); } }} />
-      <SocraticPanel isOpen={socraticOpen} onClose={() => setSocraticOpen(false)} context={editorRef.current?.getText().slice(-500) || ""} />
       {/* v7.0: Author Memory modal */}
       {authorMemoryOpen && <AuthorMemoryModal onClose={() => setAuthorMemoryOpen(false)} />}
     </div>
