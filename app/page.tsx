@@ -1,37 +1,60 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import {
-  loadAllDocMeta,
-  hasArchitecture,
-  loadArchitecture,
-  loadWritingHistory,
-} from "@/lib/local-store";
-import type { DocMeta } from "@/lib/local-store";
-import type { WritingSession } from "@/lib/local-store";
+import ThemeSwitcher from "@/components/shared/ThemeSwitcher";
+
+const ANCHOR_KEY = "sculptor-anchor";
+const SAVED_STATE_KEY = "sculptor-saved-state";
+
+function hasSavedState(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = localStorage.getItem(SAVED_STATE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && Object.keys(parsed).length > 0;
+  } catch {
+    return false;
+  }
+}
 
 export default function Home() {
   const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
-  const [docs, setDocs] = useState<DocMeta[]>([]);
-  const [history, setHistory] = useState<WritingSession[]>([]);
-  const [hasArch, setHasArch] = useState(false);
-  const [archTitle, setArchTitle] = useState("");
+  const [anchor, setAnchor] = useState("");
+  const [savedStateExists, setSavedStateExists] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    setDocs(loadAllDocMeta().slice(0, 5));
-    setHistory(loadWritingHistory().slice(0, 5));
-    const arch = hasArchitecture();
-    setHasArch(arch);
-    if (arch) {
-      const snap = loadArchitecture();
-      if (snap?.nodes?.[0]?.title) {
-        setArchTitle(snap.nodes[0].title);
-      }
-    }
+    setSavedStateExists(hasSavedState());
+
+    // Focus input on mount
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
   }, []);
+
+  const handleSubmit = () => {
+    const trimmed = anchor.trim();
+    if (!trimmed) return;
+
+    try {
+      localStorage.setItem(ANCHOR_KEY, trimmed);
+    } catch {
+      // localStorage unavailable — proceed anyway
+    }
+
+    router.push("/discover");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
 
   if (!mounted) {
     return (
@@ -44,8 +67,6 @@ export default function Home() {
     );
   }
 
-  const hasAnyDocs = docs.length > 0 || history.length > 0;
-
   return (
     <div
       style={{
@@ -53,359 +74,144 @@ export default function Home() {
         background: "var(--bg-primary)",
         display: "flex",
         flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
         fontFamily: "var(--font-ui)",
-        overflow: "auto",
+        padding: "32px 24px",
+        animation: "fadeIn 0.5s ease",
+        position: "relative",
       }}
     >
-      {/* ── Top bar ──────────────────────────────────────── */}
+      {/* Inline keyframes */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {/* ThemeSwitcher in top-right corner */}
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          padding: "16px 32px",
-          gap: 12,
+          position: "absolute",
+          top: 20,
+          right: 24,
         }}
       >
-        <span
-          style={{ fontSize: 12, color: "var(--text-tertiary)", cursor: "pointer" }}
-          onClick={() => router.push("/write")}
-        >
-          架构画布
-        </span>
-        <span
-          style={{ fontSize: 12, color: "var(--text-tertiary)", cursor: "pointer" }}
-          onClick={() => router.push("/write")}
-        >
-          写作编辑器
-        </span>
+        <ThemeSwitcher />
       </div>
 
-      {/* ── Hero ─────────────────────────────────────────── */}
+      {/* Main content */}
       <div
         style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "80px 32px",
+          maxWidth: 520,
+          width: "100%",
+          textAlign: "center",
         }}
       >
-        {/* Brand mark */}
-        <div
-          style={{
-            width: 80,
-            height: 80,
-            borderRadius: 20,
-            background: "linear-gradient(135deg, var(--gold) 0%, #8b6914 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: 32,
-            boxShadow: "0 0 60px rgba(201,169,92,0.25)",
-          }}
-        >
-          <span style={{ fontSize: 36, filter: "grayscale(30%)" }}>✧</span>
-        </div>
-
-        {/* Title */}
+        {/* Heading */}
         <h1
           style={{
-            fontSize: 56,
-            fontWeight: 200,
+            fontSize: 28,
+            fontWeight: 700,
             color: "var(--text-primary)",
-            letterSpacing: "0.05em",
-            margin: "0 0 8px 0",
-            fontFamily: "'Source Serif 4', serif",
+            margin: "0 0 12px 0",
+            letterSpacing: "0.02em",
           }}
         >
-          Sculptor
+          今天你想思考什么？
         </h1>
 
-        {/* Tagline */}
+        {/* Subtitle */}
         <p
           style={{
-            fontSize: 16,
-            color: "var(--text-secondary)",
-            fontWeight: 300,
-            margin: "0 0 48px 0",
-            maxWidth: 420,
-            textAlign: "center",
-            lineHeight: 1.7,
+            fontSize: 14,
+            color: "var(--text-tertiary)",
+            margin: "0 0 40px 0",
+            lineHeight: 1.6,
           }}
         >
-          先搭架构，再落笔。
-          <br />
-          AI 帮你理清思路，你负责写出灵魂。
+          一句话、一个问题、几个关键词都可以
         </p>
 
-        {/* Primary CTA */}
-        <button
-          onClick={() => router.push("/write")}
+        {/* Anchor input */}
+        <input
+          ref={inputRef}
+          type="text"
+          value={anchor}
+          onChange={(e) => setAnchor(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="例如：为什么AI产品越来越像聊天机器人？"
           style={{
-            padding: "14px 48px",
+            width: "100%",
+            padding: "16px 20px",
             fontSize: 16,
-            fontWeight: 500,
-            borderRadius: 10,
-            border: "none",
-            background: "linear-gradient(135deg, var(--gold) 0%, #8b6914 100%)",
-            color: "#0a0a0a",
-            cursor: "pointer",
-            letterSpacing: "0.04em",
-            boxShadow: "0 0 30px rgba(201,169,92,0.2)",
-            transition: "all 0.25s",
+            fontFamily: "var(--font-ui)",
+            color: "var(--text-primary)",
+            background: "white",
+            border: "1.5px solid var(--border-light)",
+            borderRadius: 12,
+            outline: "none",
+            transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+            boxSizing: "border-box",
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translateY(-2px)";
-            e.currentTarget.style.boxShadow =
-              "0 8px 40px rgba(201,169,92,0.35)";
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = "var(--accent-gold)";
+            e.currentTarget.style.boxShadow = "0 0 0 3px rgba(201,169,92,0.15)";
           }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0)";
-            e.currentTarget.style.boxShadow =
-              "0 0 30px rgba(201,169,92,0.2)";
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = "var(--border-light)";
+            e.currentTarget.style.boxShadow = "none";
           }}
-        >
-          开始写作
-        </button>
+        />
 
-        {/* Secondary actions */}
+        {/* Bottom links */}
         <div
           style={{
             display: "flex",
+            justifyContent: "center",
             gap: 24,
-            marginTop: 28,
+            marginTop: 32,
+            fontSize: 13,
+            color: "var(--text-tertiary)",
           }}
         >
-          <span
-            onClick={() => router.push("/write")}
-            style={{
-              fontSize: 13,
-              color: "var(--text-tertiary)",
-              cursor: "pointer",
-              transition: "color 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = "var(--gold)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = "var(--text-tertiary)";
-            }}
-          >
-            从空白框架开始
-          </span>
-          <span style={{ color: "var(--border)", fontSize: 13 }}>·</span>
-          <span
-            onClick={() => router.push("/write")}
-            style={{
-              fontSize: 13,
-              color: "var(--text-tertiary)",
-              cursor: "pointer",
-              transition: "color 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = "var(--gold)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = "var(--text-tertiary)";
-            }}
-          >
-            直接开始写
-          </span>
-        </div>
-
-        {/* ── Continue writing prompt (if architecture exists) ── */}
-        {hasArch && (
-          <div
-            onClick={() => router.push("/write")}
-            style={{
-              marginTop: 48,
-              padding: "16px 24px",
-              background: "var(--bg-secondary)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
-              cursor: "pointer",
-              transition: "border-color 0.2s",
-              textAlign: "center",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "var(--gold)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "var(--border)";
-            }}
-          >
-            <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
-              继续上次的架构
-            </span>
-            <div
+          {savedStateExists && (
+            <span
+              onClick={() => router.push("/discover")}
               style={{
-                fontSize: 14,
-                color: "var(--gold)",
-                marginTop: 4,
-                fontWeight: 500,
+                cursor: "pointer",
+                transition: "color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "var(--accent-gold)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "var(--text-tertiary)";
               }}
             >
-              {archTitle || "未命名架构"}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Recent documents section ─────────────────────── */}
-      {hasAnyDocs && (
-        <div
-          style={{
-            padding: "0 32px 80px",
-            maxWidth: 640,
-            margin: "0 auto",
-            width: "100%",
-          }}
-        >
-          {/* Recent docs */}
-          {docs.length > 0 && (
-            <>
-              <h2
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "var(--text-tertiary)",
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  margin: "0 0 16px 0",
-                }}
-              >
-                最近文档
-              </h2>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {docs.map((doc) => (
-                  <div
-                    key={doc.id}
-                    onClick={() => router.push(`/write`)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "12px 16px",
-                      background: "var(--bg-secondary)",
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      border: "1px solid transparent",
-                      transition: "all 0.15s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border)";
-                      e.currentTarget.style.background = "var(--bg-tertiary)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "transparent";
-                      e.currentTarget.style.background = "var(--bg-secondary)";
-                    }}
-                  >
-                    <span style={{ fontSize: 14, marginRight: 8 }}>📄</span>
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{ fontSize: 14, color: "var(--text-primary)" }}
-                      >
-                        {doc.title}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: "var(--text-tertiary)",
-                          marginTop: 2,
-                        }}
-                      >
-                        {new Date(doc.updatedAt).toLocaleDateString("zh-CN")}
-                        {doc.wordCount ? ` · ${doc.wordCount} 字` : ""}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
+              继续上次思考
+            </span>
           )}
-
-          {/* Writing history */}
-          {history.length > 0 && (
-            <div style={{ marginTop: 40 }}>
-              <h2
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "var(--text-tertiary)",
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  margin: "0 0 16px 0",
-                }}
-              >
-                写作历史
-              </h2>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {history.map((s, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "8px 16px",
-                      background: "var(--bg-secondary)",
-                      borderRadius: 6,
-                      fontSize: 13,
-                    }}
-                  >
-                    <span
-                      style={{
-                        color: "var(--text-tertiary)",
-                        fontSize: 11,
-                        marginRight: 12,
-                        minWidth: 80,
-                      }}
-                    >
-                      {new Date(s.date).toLocaleDateString("zh-CN")}
-                    </span>
-                    <span
-                      style={{
-                        color: "var(--text-primary)",
-                        flex: 1,
-                      }}
-                    >
-                      {s.architectureTitle}
-                    </span>
-                    <span
-                      style={{
-                        color: "var(--text-tertiary)",
-                        fontSize: 11,
-                      }}
-                    >
-                      {s.wordCount} 字
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {savedStateExists && (
+            <span style={{ color: "var(--border)", userSelect: "none" }}>·</span>
           )}
+          <span
+            onClick={() => router.push("/rules")}
+            style={{
+              cursor: "pointer",
+              transition: "color 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--accent-gold)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "var(--text-tertiary)";
+            }}
+          >
+            写作规则
+          </span>
         </div>
-      )}
-
-      {/* ── Footer ───────────────────────────────────────── */}
-      <div
-        style={{
-          textAlign: "center",
-          padding: "32px",
-          borderTop: "1px solid var(--border-light)",
-        }}
-      >
-        <p
-          style={{
-            fontSize: 11,
-            color: "var(--text-tertiary)",
-            margin: 0,
-            opacity: 0.5,
-          }}
-        >
-          Sculptor Write · AI 写作架构师 · 先搭架构，再落笔
-        </p>
       </div>
     </div>
   );

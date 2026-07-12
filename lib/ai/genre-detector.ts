@@ -1,69 +1,101 @@
-// lib/ai/genre-detector.ts — v8.0: 12-genre content-based detection
-// Scans user input keywords to determine writing genre
+// lib/ai/genre-detector.ts — v8.0 task-based detection
+// 基于写作任务类型检测，而非文学体裁
 
 export type Genre = 
-  | "议论文" | "记叙文" | "说明文" | "散文" | "游记"
-  | "论文" | "朋友圈" | "视频文案" | "戏剧" | "诗歌" | "演讲稿" | "商业文案";
+  | "论文" | "博客" | "公众号" | "报告" | "邮件" | "演讲" | "日记" | "其它";
 
 export interface GenreInfo {
   genre: Genre;
   label: string;       // display name
-  icon: string;        // emoji
   description: string; // one-line description
-  nodeTypes: string[]; // supported node types for this genre
+  nodeTypes: string[]; // supported node types for this task
 }
 
 export const GENRE_INFO: Record<Genre, GenreInfo> = {
-  "议论文": { genre: "议论文", label: "议论文", icon: "📝", description: "论述观点、论证分析", nodeTypes: ["thesis","argument","counterargument","evidence","rebuttal","conclusion","hook","background"] },
-  "记叙文": { genre: "记叙文", label: "记叙文", icon: "📖", description: "讲述故事、叙述经历", nodeTypes: ["hook","scene","climax","reflection","background","departure"] },
-  "说明文": { genre: "说明文", label: "说明文", icon: "📋", description: "解释概念、阐明原理", nodeTypes: ["hook","definition","component","step","summary"] },
-  "散文":   { genre: "散文", label: "散文", icon: "🌸", description: "抒情写意、随笔感悟", nodeTypes: ["hook","imagery","reflection"] },
-  "游记":   { genre: "游记", label: "游记", icon: "✈️", description: "记录旅程、分享见闻", nodeTypes: ["hook","departure","scene","impression","reflection"] },
-  "论文":   { genre: "论文", label: "学术论文", icon: "🎓", description: "学术研究、严谨论证", nodeTypes: ["abstract","introduction","literature","method","result","discussion","conclusion"] },
-  "朋友圈": { genre: "朋友圈", label: "朋友圈", icon: "💬", description: "社交分享、短文案", nodeTypes: ["hook","emotion","punchline"] },
-  "视频文案": { genre: "视频文案", label: "视频脚本", icon: "🎬", description: "短视频、直播脚本", nodeTypes: ["hook","setup","body","climax","cta"] },
-  "戏剧":   { genre: "戏剧", label: "戏剧剧本", icon: "🎭", description: "话剧、影视剧本", nodeTypes: ["act","scene","dialogue","stage_direction","climax"] },
-  "诗歌":   { genre: "诗歌", label: "诗歌", icon: "🎵", description: "诗词、现代诗", nodeTypes: ["title","line","couplet","refrain"] },
-  "演讲稿": { genre: "演讲稿", label: "演讲稿", icon: "🎤", description: "公众演讲、致辞", nodeTypes: ["opening","body","closing"] },
-  "商业文案": { genre: "商业文案", label: "商业文案", icon: "💼", description: "广告、品牌文案", nodeTypes: ["headline","subhead","body","features","cta"] },
+  "论文": {
+    genre: "论文",
+    label: "论文",
+    description: "学术写作、研究论证",
+    nodeTypes: ["abstract", "introduction", "literature", "method", "result", "discussion", "conclusion"],
+  },
+  "博客": {
+    genre: "博客",
+    label: "博客",
+    description: "技术博客、心得分享",
+    nodeTypes: ["hook", "introduction", "body", "example", "conclusion"],
+  },
+  "公众号": {
+    genre: "公众号",
+    label: "公众号",
+    description: "公众号文章、新媒体写作",
+    nodeTypes: ["hook", "lead", "body", "section", "cta"],
+  },
+  "报告": {
+    genre: "报告",
+    label: "报告",
+    description: "工作报告、总结分析",
+    nodeTypes: ["background", "methodology", "finding", "analysis", "conclusion"],
+  },
+  "邮件": {
+    genre: "邮件",
+    label: "邮件",
+    description: "商务邮件、正式信函",
+    nodeTypes: ["subject", "greeting", "body", "call_to_action", "closing"],
+  },
+  "演讲": {
+    genre: "演讲",
+    label: "演讲",
+    description: "演讲稿、发言致辞",
+    nodeTypes: ["opening", "body_point", "story", "climax", "closing"],
+  },
+  "日记": {
+    genre: "日记",
+    label: "日记",
+    description: "个人日记、日常记录",
+    nodeTypes: ["date", "event", "reflection", "emotion"],
+  },
+  "其它": {
+    genre: "其它",
+    label: "其它",
+    description: "自由写作、通用创作",
+    nodeTypes: ["hook", "body", "conclusion"],
+  },
 };
 
-// Keyword → Genre mapping (ordered by priority)
+// 关键词 → 任务类别映射（按优先级排序）
 const KEYWORD_RULES: { keywords: RegExp; genre: Genre }[] = [
-  { keywords: /论文|学术|研究|文献|期刊/, genre: "论文" },
-  { keywords: /朋友圈|配文|文案.*短|短文案|发个圈/, genre: "朋友圈" },
-  { keywords: /视频|脚本|抖音|B站|b站|字幕|剪辑|拍摄|短片/, genre: "视频文案" },
-  { keywords: /戏剧|剧本|话剧|舞台|台词|对白|独白/, genre: "戏剧" },
-  { keywords: /诗|词|诗歌|写诗|填词|古诗|唐诗|宋词|现代诗/, genre: "诗歌" },
-  { keywords: /演讲|发言|致辞|演讲稿|讲话|开场白|闭幕/, genre: "演讲稿" },
-  { keywords: /广告|推广|品牌|营销|slogan|海报|推广文案/, genre: "商业文案" },
-  { keywords: /故事|经历|回忆|那年|曾经|记得|小时候/, genre: "记叙文" },
-  { keywords: /解释|说明|为什么|什么是|原理|定义|概念|如何|怎么/, genre: "说明文" },
-  { keywords: /散文|随笔|感悟|心境|随笔|随想/, genre: "散文" },
-  { keywords: /游记|旅行|之旅|景点|游|去了|行程/, genre: "游记" },
+  { keywords: /论文|学术|研究|文献|引用|APA|MLA|摘要|关键词|参考文献|abstract|introduction|methodology|conclusion/, genre: "论文" },
+  { keywords: /博客|blog|技术|教程|分享|心得/, genre: "博客" },
+  { keywords: /公众号|微信|推送|排版|粉丝|阅读量/, genre: "公众号" },
+  { keywords: /报告|汇报|周报|月报|总结|分析/, genre: "报告" },
+  { keywords: /邮件|email|尊敬的|您好|此致/, genre: "邮件" },
+  { keywords: /演讲|发言|致辞|演讲稿|开场白|结束语/, genre: "演讲" },
+  { keywords: /日记|记录|今天|心情/, genre: "日记" },
 ];
 
-/** Detect genre from user input text */
+/** 从用户输入文本检测写作任务类型 */
 export function detectGenre(text: string): Genre {
   for (const rule of KEYWORD_RULES) {
     if (rule.keywords.test(text)) return rule.genre;
   }
-  return "议论文"; // default
+  return "其它"; // 默认回退
 }
 
-/** Get genre info by name */
+/** 根据名称获取任务类型信息 */
 export function getGenreInfo(genre: string): GenreInfo {
-  return GENRE_INFO[genre as Genre] || GENRE_INFO["议论文"];
+  return GENRE_INFO[genre as Genre] || GENRE_INFO["其它"];
 }
 
-/** Get all genre options for selection UI */
-export function getGenreOptions(): { genre: Genre; label: string; icon: string; description: string }[] {
+/** 获取所有任务类别选项（供选择界面使用） */
+export function getGenreOptions(): { genre: Genre; label: string; description: string }[] {
   return Object.values(GENRE_INFO).map(g => ({
-    genre: g.genre, label: g.label, icon: g.icon, description: g.description,
+    genre: g.genre,
+    label: g.label,
+    description: g.description,
   }));
 }
 
-/** Suggest genres that might match the input (for confirm-genre API) */
+/** 推荐可能匹配输入的任务类别（供确认接口使用） */
 export function suggestGenres(text: string, limit = 4): GenreInfo[] {
   const detected = detectGenre(text);
   const scored: { genre: Genre; score: number }[] = [];
@@ -76,7 +108,7 @@ export function suggestGenres(text: string, limit = 4): GenreInfo[] {
   scored.sort((a, b) => b.score - a.score);
   const genres = scored.slice(0, limit).map(s => s.genre);
   
-  // Always include detected genre
+  // 始终包含检测到的类别
   if (!genres.includes(detected)) genres.unshift(detected);
   
   return genres.slice(0, limit).map(g => GENRE_INFO[g]);

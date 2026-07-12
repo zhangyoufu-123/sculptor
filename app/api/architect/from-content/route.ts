@@ -22,7 +22,9 @@ function mockGenerateNodes(content: string): Array<{
   const lines = content.split("\n").filter((l) => l.trim().length > 10);
   const firstSentence = lines[0]?.slice(0, 30) || "正文";
 
-  // v8.0: Generic 3-tier structure based on content length
+  // v8.0: 任务类型感知的结构提取，替换泛型"论点一/论点二"
+  const genreLabel = getGenreLabel(genre);
+  
   const nodes = [
     {
       id: "n1",
@@ -34,27 +36,41 @@ function mockGenerateNodes(content: string): Array<{
     {
       id: "n2",
       type: "custom",
-      label: "展开：论点一",
-      notes: `基于 ${charCount} 字内容的第一层展开`,
+      label: `${genreLabel}：第一个核心段落`,
+      notes: `基于 ${charCount} 字内容的主体结构`,
       children: [],
     },
     {
       id: "n3",
       type: "custom",
-      label: "深入：论点二",
-      notes: "需要补充数据或案例的第二层",
+      label: `扩展：支撑材料与补充`,
+      notes: "需要补充数据或案例的段落",
       children: ["n4"],
     },
     {
       id: "n4",
       type: "custom",
       label: "收尾与总结",
-      notes: "回扣开篇，升华主题",
+      notes: "回扣开篇，归纳核心观点",
       children: [],
     },
   ];
 
   return nodes;
+}
+
+/** 根据任务类型返回中文标签 */
+function getGenreLabel(genre: string): string {
+  switch (genre) {
+    case "论文": return "论述";
+    case "博客": return "要点";
+    case "公众号": return "章节";
+    case "报告": return "发现";
+    case "邮件": return "要点";
+    case "演讲": return "要点";
+    case "日记": return "记录";
+    default: return "段落";
+  }
 }
 
 export async function POST(req: NextRequest) {

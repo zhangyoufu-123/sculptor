@@ -66,14 +66,52 @@ export default function WritePage() {
     echoWall.handleTextSelect(selectedText);
   }, [selectedText]);
 
-  // Load skeleton nodes from local store (architect → write bridge)
+  // Load skeleton nodes from local store (architect/discover → write bridge)
   const [skeletonNodes, setSkeletonNodes] = useState<ArchitectNode[]>([]);
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
 
   useEffect(() => {
+    // v8.0: Try discover outline first, then fall back to architect
+    if (typeof window === "undefined") return;
+    
+    const discoverRaw = localStorage.getItem("sculptor-discover-outline");
+    if (discoverRaw) {
+      try {
+        const discoverData = JSON.parse(discoverRaw);
+        if (discoverData.outline?.length) {
+          const nodes: ArchitectNode[] = discoverData.outline.map(
+            (item: any, i: number) => ({
+              id: `dn${i + 1}`,
+              label: item.title,
+              type: item.level === 1 ? "section" : "subsection",
+              position: { x: 0, y: 0 },
+              children: item.level === 1 ? [] : undefined,
+              notes: item.notes || "",
+            })
+          );
+          // Build parent-child relationships for level 2 items
+          for (let i = 0; i < nodes.length; i++) {
+            if (!discoverData.outline[i]) continue;
+            if (discoverData.outline[i].level === 2) {
+              // Find nearest level 1 above
+              for (let j = i - 1; j >= 0; j--) {
+                if (discoverData.outline[j].level === 1) {
+                  nodes[j].children = nodes[j].children || [];
+                  nodes[j].children.push(nodes[i].id);
+                  break;
+                }
+              }
+            }
+          }
+          setSkeletonNodes(nodes);
+          return;
+        }
+      } catch { /* fall through */ }
+    }
+
+    // Fallback: old architect format
     const saved = loadArchitecture();
     if (saved?.nodes?.length) {
-      // Convert ArchNode → ArchitectNode for StructureMap compat
       setSkeletonNodes(saved.nodes.map((n) => ({
         id: n.id, label: n.title, type: n.type,
         position: { x: 0, y: 0 }, children: n.children,
