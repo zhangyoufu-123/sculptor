@@ -13,6 +13,7 @@ import SocraticPanel from "@/components/panels/SocraticPanel";
 import StructureMap from "@/components/panels/StructureMap";
 import ParagraphCards from "@/components/panels/ParagraphCards";
 import AuthorMemoryModal from "@/components/author/AuthorMemoryModal";
+import DraftSnapshots from "@/components/DraftSnapshots";
 import { useGhostText } from "@/hooks/useGhostText";
 import { useEchoWall } from "@/hooks/useEchoWall";
 import { useUIStore } from "@/lib/store";
@@ -289,11 +290,25 @@ export default function WritePage() {
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "var(--bg-primary)" }}>
        <TopBar documentTitle={documentTitle} onTitleChange={(t) => { setDocumentTitle(t); saveDocument(t); }} saveStatus={saveStatus} onStyleClick={() => setStyleOpen(true)} />
-      {/* v7.0: Author Memory quick access */}
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 16px", background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-light)", gap: 8 }}>
-        <button onClick={() => setAuthorMemoryOpen(true)} style={{ background: "none", border: "none", color: "var(--text-tertiary)", fontSize: 11, cursor: "pointer", fontFamily: "var(--font-ui)" }}>
-          写作规则
-        </button>
+      {/* v7.0: Author Memory quick access + Drafts */}
+      <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 16px", background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-light)" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button onClick={() => setAuthorMemoryOpen(true)} style={{ background: "none", border: "none", color: "var(--text-tertiary)", fontSize: 11, cursor: "pointer", fontFamily: "var(--font-ui)" }}>
+            写作规则
+          </button>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <DraftSnapshots
+            docId={currentDocId || "untitled"}
+            title={documentTitle}
+            content={editorContent}
+            onRestore={(text) => {
+              if (editorRef.current) {
+                editorRef.current.chain().focus().setContent(text).run();
+              }
+            }}
+          />
+        </div>
       </div>
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
