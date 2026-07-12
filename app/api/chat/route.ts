@@ -24,15 +24,13 @@ export async function POST(request: NextRequest) {
         async start(controller) {
           const encoder = new TextEncoder();
           try {
-            // Mock mode: context-aware ghost text
+            // v8.0: Structure suggestions, not sentence guessing
             if (isMockMode()) {
               const nodeTitle = body.nodeContext?.title || "";
-              const nodeTip = body.nodeContext?.writingTip || "";
-              let mockText = MOCK_GHOST_TEXTS[Math.floor(Math.random() * MOCK_GHOST_TEXTS.length)];
-              if (nodeTitle) {
-                mockText = `围绕「${nodeTitle}」展开，${mockText}`;
-              }
-              await new Promise((r) => setTimeout(r, 400));
+              const mockText = nodeTitle
+                ? `• 可以补充的数据或案例\n• 一个反方观点\n• 过渡到下一段的衔接`
+                : `• 你的核心论点是什么？\n• 谁是你的读者？\n• 这篇文章想改变什么？`;
+              await new Promise((r) => setTimeout(r, 300));
               controller.enqueue(
                 encoder.encode(
                   `data: ${JSON.stringify({ type: "ghost_text", text: mockText })}\n\n`
@@ -55,13 +53,7 @@ export async function POST(request: NextRequest) {
               messages: [
                 {
                   role: "system",
-                  content: `You are a ghost writer providing seamless inline continuation. Rules:
-- Continue naturally from where the text leaves off
-- Output 1-2 sentences maximum
-- Match the tone, rhythm, and style of the existing text EXACTLY
-- Do NOT start a new paragraph, headline, or change topic
-- Do NOT use markdown, quotes, or formatting
-- Write as if you are the same author continuing mid-sentence or mid-paragraph`,
+                  content: `You are a writing coach, NOT a ghost writer. Do NOT continue the user's sentence. Instead, suggest 2-3 STRUCTURE ideas:\n- What data/example could support this point?\n- What counterargument should be addressed?\n- What transition would connect this to the next paragraph?\n\nOutput as bullet points (• ). Keep each point under 25 words. Write in Chinese.`,
                 },
                 {
                   role: "user",
