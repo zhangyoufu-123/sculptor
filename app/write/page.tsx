@@ -11,6 +11,7 @@ import Studio from "@/components/panels/Studio";
 import StyleSetup from "@/components/StyleSetup";
 import SocraticPanel from "@/components/panels/SocraticPanel";
 import StructureMap from "@/components/panels/StructureMap";
+import ParagraphCards from "@/components/panels/ParagraphCards";
 import AuthorMemoryModal from "@/components/author/AuthorMemoryModal";
 import { useGhostText } from "@/hooks/useGhostText";
 import { useEchoWall } from "@/hooks/useEchoWall";
@@ -155,7 +156,59 @@ export default function WritePage() {
     setStyleProfile({ tone: p.tone, avg_sentence_length: p.avg_sentence_length, common_imagery: p.common_imagery, formality: String(p.formality), keywords: p.keywords });
   }, [setStyleProfile]);
 
-  // ── Empty state & structure offer ──────────────────────────
+    // ── Node notes update ────────────────────────────────────
+  const handleUpdateNodeNotes = useCallback((nodeId: string, notes: string) => {
+    const updated = skeletonNodes.map((n) =>
+      n.id === nodeId ? { ...n, notes } : n
+    );
+    setSkeletonNodes(updated);
+    // Persist to localStorage
+    const archNodes: ArchNode[] = updated.map((n, i) => ({
+      id: n.id,
+      type: n.type,
+      title: n.label,
+      summary: n.notes || "",
+      children: n.children || [],
+      order: i,
+      parent: null,
+      isExpanded: true,
+    }));
+    saveArchitecture(archNodes);
+  }, [skeletonNodes]);
+
+  // ── Node label update ────────────────────────────────────
+  const handleUpdateNodeLabel = useCallback((nodeId: string, label: string) => {
+    const updated = skeletonNodes.map((n) =>
+      n.id === nodeId ? { ...n, label } : n
+    );
+    setSkeletonNodes(updated);
+    const archNodes: ArchNode[] = updated.map((n, i) => ({
+      id: n.id,
+      type: n.type,
+      title: n.label,
+      summary: n.notes || "",
+      children: n.children || [],
+      order: i,
+      parent: null,
+      isExpanded: true,
+    }));
+    saveArchitecture(archNodes);
+  }, [skeletonNodes]);
+
+  // v8.1: Focus Mode tooltip on first visit
+  const [focusTipVisible, setFocusTipVisible] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined" && !localStorage.getItem("sculptor-focus-tip")) {
+      const timer = setTimeout(() => {
+        if (editorRef.current && editorContent.length > 0) {
+          setFocusTipVisible(true);
+          localStorage.setItem("sculptor-focus-tip", "1");
+        }
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [editorContent]);
+
   const charCount = editorContent.length;
   const isEmpty = editorContent.trim() === "";
   const hasArchitecture = skeletonNodes.length > 0;
@@ -314,14 +367,16 @@ export default function WritePage() {
                     <p style={{ marginTop: 12, fontSize: 11 }}>AI 将基于已写内容自动生成建议架构</p>
                   </div>
                 ) : (
-                  <StructureMap
+                  <ParagraphCards
                     nodes={skeletonNodes}
                     activeNodeId={activeNodeId}
+                    editorContent={editorContent}
                     onSelectNode={setActiveNodeId}
-                    onAIExpand={(nodeId, label) => {
-                      // Redirect to architect page with pre-filled expand command
+                    onAIExpandNode={(nodeId, label) => {
                       window.location.href = `/architect?action=expand&node=${encodeURIComponent(label)}`;
                     }}
+                    onUpdateNodeNotes={handleUpdateNodeNotes}
+                    onUpdateNodeLabel={handleUpdateNodeLabel}
                   />
                 )}
               </div>
@@ -384,6 +439,43 @@ export default function WritePage() {
               </div>
             </div>
           )}
+          {/* Focus Mode first-visit tooltip */}
+          {focusTipVisible && (
+            <div style={{
+              position: "fixed", top: 60, right: 24,
+              zIndex: 100,
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border-light)",
+              borderRadius: 8,
+              padding: "8px 14px",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+              animation: "fadeInUp 0.25s ease",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}>
+              <kbd style={{
+                fontSize: 12, fontWeight: 600,
+                color: "var(--text-inverse)",
+                background: "var(--text-primary)",
+                borderRadius: 4,
+                padding: "1px 6px",
+                fontFamily: "var(--font-mono)",
+              }}>F</kbd>
+              <span style={{ fontSize: 13, color: "var(--text-secondary)", fontFamily: "var(--font-ui)" }}>
+                进入专注模式
+              </span>
+              <button
+                onClick={() => setFocusTipVisible(false)}
+                style={{
+                  background: "none", border: "none",
+                  color: "var(--text-tertiary)", cursor: "pointer",
+                  fontSize: 14, padding: 0, lineHeight: 1,
+                }}
+              >✕</button>
+            </div>
+          )}
+
         </main>
 
         {/* RIGHT: Studio (hidden when empty with no architecture) */}
