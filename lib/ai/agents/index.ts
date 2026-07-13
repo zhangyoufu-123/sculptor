@@ -27,6 +27,42 @@ import {
   splitStatements,
 } from "../verifier";
 import { readRecentMemories, writeMemory } from "../context-memory";
+import {
+  searchKnowledge,
+  searchKnowledgeAll,
+  detectDomain,
+  getSourceCitation,
+} from "../knowledge-hub";
+import type { KnowledgeDomain } from "../knowledge-hub";
+
+// ── Agent domain → Knowledge Hub domain mapping ──
+const AGENT_TO_HUB_DOMAIN: Record<string, KnowledgeDomain | null> = {
+  design: "HCI/产品设计",
+  technology: "AI/技术",
+  education: "教育",
+  psychology: "社会/文化",
+  sociology: "社会/文化",
+  culture: "社会/文化",
+  philosophy: "哲学",
+  history: "历史",
+  writing: "写作",
+  literature: "写作",
+  encyclopedia: null, // no hub coverage → mock fallback
+  general: null,       // no hub coverage → mock fallback
+};
+
+/** Convert a Knowledge Hub evidence item to an agent Evidence item */
+function hubEvidenceToAgent(
+  hubEv: import("../knowledge-hub").Evidence,
+): import("./types").Evidence {
+  return {
+    statement: hubEv.text,
+    source: getSourceCitation(hubEv.source, hubEv.sourceType),
+    sourceType: hubEv.sourceType as import("./types").SourceType,
+    confidence: hubEv.confidence,
+    isFact: hubEv.confidence >= 0.75,
+  };
+}
 
 // ═══════════════════════════════════════════════════════════════
 // 1. PlannerAgent — 拆解问题，制定知识计划
@@ -199,13 +235,41 @@ export function createRetrieverAgent(): RetrieverAgent {
 
     retrieve(plan, context) {
       const allEvidence: Evidence[] = [];
+      const hubUsedDomains = new Set<string>();
 
+      // ── Step 1: Detect domain from anchor using knowledge hub ──
+      const detectedHubDomain = detectDomain(context.anchor, context.thinking || []);
+
+      // ── Step 2: Try knowledge hub first for each plan domain ──
       for (const domain of plan.domains) {
-        const domainEvidence = getMockEvidence(domain, context.anchor);
-        allEvidence.push(...domainEvidence);
+        const hubDomain = AGENT_TO_HUB_DOMAIN[domain];
+
+        if (hubDomain) {
+          // Search the knowledge hub for this domain
+          const hubResults = searchKnowledge(context.anchor, hubDomain, 3);
+          if (hubResults.length > 0) {
+            allEvidence.push(...hubResults.map(hubEvidenceToAgent));
+            hubUsedDomains.add(domain);
+            continue;
+          }
+        }
+
+        // ── Step 3: Fallback to mock evidence ──
+        const mockEvidence = getMockEvidence(domain, context.anchor);
+        allEvidence.push(...mockEvidence);
       }
 
-      // 计算覆盖率
+      // ── Step 4: Also search the detected domain if not already covered ──
+      // (This catches cases where the anchor's domain isn't in plan.domains)
+      const alreadyQueried = plan.domains.some((d) => AGENT_TO_HUB_DOMAIN[d] === detectedHubDomain);
+      if (!alreadyQueried) {
+        const hubResults = searchKnowledge(context.anchor, detectedHubDomain, 3);
+        if (hubResults.length > 0) {
+          allEvidence.push(...hubResults.map(hubEvidenceToAgent));
+        }
+      }
+
+      // Calculate coverage
       const coverage =
         plan.domains.length > 0
           ? Math.min(

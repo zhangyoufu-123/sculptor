@@ -436,6 +436,10 @@ export default function DiscoverPage() {
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [insightFetched, setInsightFetched] = useState(false);
 
+  // ── Pipeline evidence state ──
+  const [showEvidence, setShowEvidence] = useState(false);
+  const [pipelineData, setPipelineData] = useState<any>(null);
+
   const anchorRef = useRef(anchor);
 
   // ── Load on mount ──
@@ -476,6 +480,9 @@ export default function DiscoverPage() {
           affirmed: false,
         }));
         setQuestions(qs);
+        if (d.pipeline) {
+          setPipelineData(d.pipeline);
+        }
       }
     } catch {
       // silent
@@ -850,6 +857,60 @@ export default function DiscoverPage() {
             />
           </div>
         </div>
+
+        {/* ── PIPELINE EVIDENCE SECTION ── */}
+        {pipelineData && pipelineData.evidenceCount > 0 && (
+          <div style={{ marginBottom: 40 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--text-tertiary)",
+                cursor: "pointer",
+                userSelect: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "4px 0",
+                opacity: 0.6,
+                transition: "opacity 150ms",
+              }}
+              onClick={() => setShowEvidence(!showEvidence)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "1";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "0.6";
+              }}
+            >
+              <span>参考来源 ({pipelineData.evidenceCount} 条)</span>
+              <span style={{ fontSize: 10 }}>
+                {showEvidence ? "▾" : "▸"}
+              </span>
+            </div>
+            {showEvidence && pipelineData.context && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: "10px 14px",
+                  borderRadius: "var(--radius-md)",
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border-subtle)",
+                  fontSize: 12,
+                  color: "var(--text-secondary)",
+                  lineHeight: 1.6,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  maxHeight: 200,
+                  overflowY: "auto",
+                }}
+              >
+                {pipelineData.context.length > 200
+                  ? pipelineData.context.slice(0, 200) + "…"
+                  : pipelineData.context}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── INSIGHT SECTION ── */}
         {thinkingItems.length >= 3 && (
