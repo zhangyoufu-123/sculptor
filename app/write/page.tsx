@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
-import TopBar from "@/components/TopBar";
 import EditorCanvas from "@/components/EditorCanvas";
 import AIBubble from "@/components/AIBubble";
 import SuggestionPreview from "@/components/SuggestionPreview";
@@ -246,12 +245,13 @@ export default function WritePage() {
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "var(--bg-primary)" }}>
-      {/* ── Top bar: outline toggle + title + 完成 ────────── */}
+      {/* ── Top bar: outline toggle + TopBar + 完成 ────────── */}
       <div style={{
         display: "flex", alignItems: "center",
         padding: "0 16px", height: 48,
         borderBottom: "1px solid var(--border-light)",
-        background: "var(--bg-primary)",
+        background: "var(--bg-secondary)",
+        flexShrink: 0,
       }}>
         {/* Outline toggle */}
         <button
@@ -261,36 +261,43 @@ export default function WritePage() {
             background: "none", border: "none",
             color: "var(--text-tertiary)", cursor: "pointer",
             fontSize: 14, padding: "4px 6px", lineHeight: 1,
-            flexShrink: 0, marginRight: 12,
+            flexShrink: 0, marginRight: 8,
           }}
         >
           {leftPanel === "open" ? "◁" : "▷"}
         </button>
 
-        {/* Title + save status */}
-        <div style={{ flex: 1 }}>
-          <TopBar
-            documentTitle={documentTitle}
-            onTitleChange={(t) => { setDocumentTitle(t); saveDocument(t); }}
-            saveStatus={saveStatus}
-          />
-        </div>
+        {/* Title */}
+        <span
+          style={{
+            flex: 1, fontWeight: 600, fontSize: 14,
+            color: "var(--text-primary)", fontFamily: "var(--font-ui)",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            marginRight: 16,
+          }}
+        >
+          {documentTitle}
+        </span>
+
+        {/* Save status */}
+        <span style={{ fontSize: 11, color: saveStatus === "saved" ? "var(--text-tertiary)" : "var(--text-secondary)", marginRight: 12 }}>
+          {saveStatus === "saving" ? "保存中..." : saveStatus === "unsaved" ? "未保存" : "已保存"}
+        </span>
 
         {/* 完成 → */}
         <button
           onClick={handleFinish}
-          title="保存并完成写作"
+          disabled={editorContent.length < 20}
           style={{
-            background: "var(--accent-gold, #c9a95c)",
-            border: "none", color: "#fff",
-            fontSize: 13, fontWeight: 600,
-            cursor: "pointer", fontFamily: "var(--font-ui)",
-            padding: "5px 14px", borderRadius: 6,
-            flexShrink: 0, marginLeft: 12,
-            transition: "opacity 0.15s",
+            padding: "6px 14px", fontSize: 13, fontWeight: 500,
+            background: editorContent.length >= 20 ? "var(--color-brand-500)" : "var(--bg-tertiary)",
+            color: editorContent.length >= 20 ? "var(--text-on-brand)" : "var(--text-tertiary)",
+            border: "none", borderRadius: 6, cursor: editorContent.length >= 20 ? "pointer" : "default",
+            fontFamily: "var(--font-ui)", whiteSpace: "nowrap",
+            opacity: editorContent.length >= 20 ? 1 : 0.5,
           }}
         >
-          完成 →
+          完成
         </button>
       </div>
 
