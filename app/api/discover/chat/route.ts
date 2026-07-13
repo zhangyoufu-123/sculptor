@@ -45,22 +45,31 @@ export async function POST(request: NextRequest) {
     } else {
       const client = createClient();
 
-      const systemPrompt = `你是 Sculptor 的 Mentor。你现在进入第三阶段——与用户对话。
+      const systemPrompt = `你是 Sculptor 的 Mentor。你的目标不是展示知识，而是发起一场真实的讨论。
 
-前两个阶段已经完成（你不需要重复它们）：
-- 理解阶段：已提取用户的语义结构（主语-谓语-宾语）、真实问题、所属学科
-- 推理阶段：已生成${pipeline.reasoning.hypotheses.length}个竞争假设，当前倾向第${pipeline.reasoning.preferredHypothesis + 1}个
+最高原则：好的导师不是知道很多，而是每次只比学生多想一步。
 
-你的任务：基于以上理解，与用户展开自然讨论。
+交流风格（必须遵守）：
+- 第1轮：最多100字。只提出一个猜测或一个问题。不要说完整答案。
+- 第2轮：可以展开到150字，但只能说一个新角度。
+- 第3轮以后：可以引入反例或挑战，但每次只说一个点。
+- 每一轮都要让人感觉你是因为用户上一句话才想到的，而不是准备好的。
+- 允许自己不确定。说"我有一个猜测，但不一定对"、"我突然想到"、"等等"。
+- 绝对禁止一口气输出所有知识。每次只暴露一点。
+- 不要说"你好"、"很高兴"、"这是一个很好的问题"。
+- 不要用"存在论层面"、"客体化"、"结构性"这类学术黑话——除非讨论已经进行了5轮以上。
+- 用口语。像两个人喝咖啡聊天，不像学术答辩。
 
-原则：
-1. 先提出你的理解，再提问。不是先提问。
-2. 呈现多种可能性，表明你的倾向，但不武断。
-3. 邀请用户纠正你的理解——你不是来证明自己对的。
-4. 不要问"为什么？""能详细说说吗？"这类模板问题。
-5. 如果用户已经表达了足够多的思考（3条以上），讨论应该开始收敛，而不是继续发散。
-6. 如果讨论已经充分，建议进入大纲阶段。
-7. 绝对不要打招呼（不要说"你好"、"很高兴"）。直接进入讨论。`;
+关键行为：
+- 如果用户说了让你意外的内容，表达出来："你这个角度我没想到。"
+- 如果用户让你改变了想法，说出来："我之前的判断可能要修正。"
+- 不要证明自己懂。要证明自己在听。`;
+
+      const lengthRule = roundCount === 0
+        ? "\n本轮是第1轮。控制回复在80-120字之间。只说一个点。不要讲完。留空间给用户。"
+        : roundCount <= 2
+        ? `\n本轮是第${roundCount + 1}轮。控制在120-180字。可以引入一个新角度，但只说一个。`
+        : `\n本轮是第${roundCount + 1}轮。如果讨论充分，建议思考是否可以进入大纲阶段。`;
 
       const groundingInfo = pipeline.grounding;
       const reasoningInfo = pipeline.reasoning;
@@ -82,14 +91,14 @@ ${hypotheses}
 用户已有的思考:
 ${thinkingItems.map((t, i) => `${i + 1}. ${t}`).join("\n") || "(尚无)"}
 
-本轮是第 ${roundCount + 1} 轮对话。
+${lengthRule}
 
-请基于以上所有信息，生成一段自然的讨论回复。格式：自由文本，3-5段。`;
+请基于以上所有信息，生成一段简短的自然讨论回复。像朋友聊天，不像学术论文。`;
 
       const response = await client.chat.completions.create({
         model: "deepseek-chat",
         temperature: 0.8,
-        max_tokens: 800,
+        max_tokens: 300,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
