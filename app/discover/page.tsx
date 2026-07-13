@@ -461,7 +461,12 @@ export default function DiscoverPage() {
       const r = await fetch("/api/discover/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ anchor: topic, history }),
+        body: JSON.stringify({
+          anchor: topic,
+          history,
+          thinking: questions.filter((q) => q.affirmed).map((q) => q.text),
+          ideas,
+        }),
       });
       if (r.ok) {
         const d = await r.json();
@@ -528,6 +533,8 @@ export default function DiscoverPage() {
               .map((x) => ({ role: "assistant" as const, content: x.text })),
             { role: "user", content: "换一个问题" },
           ],
+          thinking: questions.filter((x) => x.affirmed).map((x) => x.text),
+          ideas,
         }),
       });
       if (r.ok) {
