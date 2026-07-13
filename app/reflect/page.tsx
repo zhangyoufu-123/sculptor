@@ -42,6 +42,12 @@ export default function ReflectPage() {
     // Load content from last writing session
     content = localStorage.getItem("sculptor-last-content") || "";
 
+    // If no content at all, redirect to write page
+    if (!content && !outline.length) {
+      router.push("/write");
+      return;
+    }
+
     setData({ anchor, outline, content });
   }, []);
 

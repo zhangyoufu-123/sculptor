@@ -672,55 +672,28 @@ export default function DiscoverPage() {
     saveIdeas([]);
   };
 
-  // ── No anchor yet ──
+  // ── No anchor yet — redirect to homepage
   if (!anchor) {
     return (
-      <div style={styles.page}>
-        <div style={styles.container}>
-          <div style={styles.emptyState as React.CSSProperties}>
-            <p style={{ marginBottom: 16, fontSize: 15 }}>
-              你想探索什么话题？
-            </p>
-            <p style={{ color: "var(--text-tertiary)", opacity: 0.7, fontSize: 13 }}>
-              输入一个你想深入思考的问题或话题，
-              <br />
-              AI 会以苏格拉底式提问帮助你发现真正想表达的东西。
-            </p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 24 }}>
-              <input
-                className="input-field"
-                value={anchorDraft}
-                onChange={(e) => setAnchorDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && anchorDraft.trim()) {
-                    setAnchor(anchorDraft.trim());
-                    anchorRef.current = anchorDraft.trim();
-                    saveAnchor(anchorDraft.trim());
-                    fetchQuestions(anchorDraft.trim());
-                  }
-                }}
-                placeholder="例如：为什么AI产品越来越像聊天机器人？"
-                style={{ width: 360, fontSize: 14, padding: "12px 16px" }}
-                autoFocus
-              />
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  const t = anchorDraft.trim();
-                  if (!t) return;
-                  setAnchor(t);
-                  anchorRef.current = t;
-                  saveAnchor(t);
-                  fetchQuestions(t);
-                }}
-                disabled={!anchorDraft.trim()}
-                style={{ minWidth: 80 }}
-              >
-                开始
-              </button>
-            </div>
-          </div>
-        </div>
+      <div style={{ ...styles.page, justifyContent: "center", textAlign: "center" }}>
+        <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 16 }}>
+          请先从首页输入你想思考的话题
+        </p>
+        <button
+          onClick={() => router.push("/")}
+          style={{
+            padding: "10px 24px",
+            background: "var(--accent-gold, #c9a95c)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            fontSize: 14,
+            cursor: "pointer",
+            fontFamily: "var(--font-ui)",
+          }}
+        >
+          回到首页
+        </button>
       </div>
     );
   }
