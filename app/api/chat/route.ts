@@ -2,7 +2,6 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { createClient } from "@/lib/deepseek";
-import { runPipeline } from "@/lib/ai/pipeline";
 import { isMockMode, MOCK_GHOST_TEXTS } from "@/lib/ai/mock-responses";
 
 export const runtime = "nodejs";
@@ -111,24 +110,12 @@ export async function POST(request: NextRequest) {
           const userId = session?.user?.id || "anonymous";
 
           try {
-            for await (const event of runPipeline({
-              userId,
-              documentId: body.documentId || null,
-              currentText: body.text || body.selectedText || "",
-              explicitIntent: intent,
-              userInstruction:
-                body.customText || body.userInstruction || "",
-              intensity: body.intensity || "normal",
-            })) {
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
-              );
-
-              // Simulate streaming delay between options
-              if (event.type === "option") {
-                await new Promise((r) => setTimeout(r, 300));
-              }
-            }
+            // v11.0: Cognitive Engine handles all AI decisions now.
+            // This route provides inline editor assistance only.
+            // Mock fallback for rewrite/continue/expand
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ type: "done", text: "AI assistance not available in this version. Use the Mentor Session for guided thinking." })}\n\n`)
+            );
           } catch (err) {
             const msg = err instanceof Error ? err.message : "Unknown error";
             controller.enqueue(

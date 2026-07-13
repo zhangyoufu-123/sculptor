@@ -5,16 +5,14 @@ import { useRouter } from "next/navigation";
 
 // ── Types ────────────────────────────────────────────────────
 
-interface Question {
-  id: string;
-  text: string;
-  affirmed: boolean;
+interface EngineState {
+  stage: string; // "topic" | "problem" | "position" | "evidence" | "outline"
+  nextAction?: string;
 }
 
-interface Insight {
-  text: string;
-  source: string;
-  confirmed: boolean;
+interface PipelineData {
+  evidenceCount: number;
+  context?: string;
 }
 
 // ── LocalStorage helpers ─────────────────────────────────────
@@ -26,11 +24,6 @@ const LS_OUTLINE = "sculptor-discover-outline";
 function loadAnchor(): string {
   if (typeof window === "undefined") return "";
   return localStorage.getItem(LS_ANCHOR) || "";
-}
-
-function saveAnchor(val: string) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(LS_ANCHOR, val);
 }
 
 function loadIdeas(): string[] {
@@ -53,303 +46,228 @@ function saveOutline(outline: unknown) {
   localStorage.setItem(LS_OUTLINE, JSON.stringify(outline));
 }
 
+// ── Stage helpers ────────────────────────────────────────────
+
+const STAGES = ["topic", "problem", "position", "evidence", "outline"] as const;
+const STAGE_LABELS: Record<string, string> = {
+  topic: "Topic",
+  problem: "Problem",
+  position: "Position",
+  evidence: "Evidence",
+  outline: "Outline",
+};
+
+function stageIndex(stage: string): number {
+  const idx = STAGES.indexOf(stage as (typeof STAGES)[number]);
+  return idx === -1 ? 0 : idx;
+}
+
 // ── Styles ───────────────────────────────────────────────────
 
+const C = {
+  // Colors
+  gold: "#c9a95c",
+  goldBg: "rgba(201,169,92,0.08)",
+  goldBorder: "rgba(201,169,92,0.3)",
+  bgPrimary: "var(--bg-primary, #0f0f0f)",
+  bgSecondary: "var(--bg-secondary, #1a1a1a)",
+  bgTertiary: "var(--bg-tertiary, #242424)",
+  textPrimary: "var(--text-primary, #f0f0f0)",
+  textSecondary: "var(--text-secondary, #a0a0a0)",
+  textTertiary: "var(--text-tertiary, #666)",
+  borderSubtle: "var(--border-subtle, #2a2a2a)",
+  borderDefault: "var(--border-default, #333)",
+  fontUi: "var(--font-ui, system-ui, -apple-system, sans-serif)",
+};
+
 const styles: Record<string, React.CSSProperties> = {
+  // ── Page shell ──
   page: {
     minHeight: "100vh",
-    background: "var(--bg-primary)",
-    fontFamily: "var(--font-ui)",
+    background: C.bgPrimary,
+    fontFamily: C.fontUi,
     display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    padding: "40px 24px 80px",
-  },
-  container: {
-    width: "100%",
-    maxWidth: 680,
-  },
-  // ── Anchor Bar ──
-  anchorBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "14px 20px",
-    borderRadius: "var(--radius-lg)",
-    background: "var(--bg-secondary)",
-    border: "1px solid var(--border-subtle)",
-    marginBottom: 32,
-  },
-  anchorText: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: 600,
-    color: "var(--text-primary)",
-    lineHeight: 1.5,
-  },
-  anchorInput: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: 600,
-    color: "var(--text-primary)",
-    border: "none",
-    background: "transparent",
-    outline: "none",
-    fontFamily: "var(--font-ui)",
-    lineHeight: 1.5,
+    justifyContent: "center",
     padding: 0,
   },
-  editHint: {
-    fontSize: 11,
-    color: "var(--text-tertiary)",
-    opacity: 0.6,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
+  layout: {
+    display: "flex",
+    width: "100%",
+    maxWidth: 960,
+    minHeight: "100vh",
   },
-  backLink: {
+  // ── Main column ──
+  main: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    padding: "40px 48px 80px",
+    minWidth: 0,
+  },
+  // ── Top bar ──
+  topBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 28,
+  },
+  backBtn: {
     display: "inline-flex",
     alignItems: "center",
     gap: 4,
-    fontSize: 13,
-    color: "var(--text-tertiary)",
+    fontSize: 14,
+    color: C.textTertiary,
     cursor: "pointer",
     background: "none",
     border: "none",
-    fontFamily: "var(--font-ui)",
-    marginBottom: 20,
+    fontFamily: C.fontUi,
     padding: "4px 0",
     opacity: 0.7,
     transition: "opacity 150ms",
   },
-  // ── Section labels ──
-  sectionLabel: {
+  topLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: C.textTertiary,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.08em",
+    opacity: 0.5,
+  },
+  // ── Progress bar ──
+  progressSection: {
+    marginBottom: 32,
+  },
+  progressRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 6,
+  },
+  progressLabel: {
     fontSize: 11,
     fontWeight: 600,
-    color: "var(--text-tertiary)",
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    marginBottom: 12,
-    opacity: 0.7,
-  },
-  // ── Thinking cards ──
-  thinkingSection: {
-    marginBottom: 40,
-  },
-  questionCard: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 12,
-    padding: "16px 20px",
-    borderRadius: "var(--radius-md)",
-    background: "var(--bg-secondary)",
-    border: "1px solid var(--border-subtle)",
-    marginBottom: 8,
-    transition: "background 150ms, border-color 150ms",
-    cursor: "default",
-  },
-  questionText: {
-    flex: 1,
-    fontSize: 15,
-    color: "var(--text-primary)",
-    lineHeight: 1.6,
-    fontWeight: 400,
-  },
-  questionActions: {
-    display: "flex",
-    gap: 6,
+    color: C.textTertiary,
+    width: 64,
+    textAlign: "right" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.06em",
+    opacity: 0.5,
     flexShrink: 0,
-    paddingTop: 2,
   },
-  actionBtn: {
-    padding: "4px 12px",
-    fontSize: 12,
-    borderRadius: "var(--radius-sm)",
-    border: "1px solid var(--border-default)",
-    background: "transparent",
-    color: "var(--text-secondary)",
-    cursor: "pointer",
-    fontFamily: "var(--font-ui)",
-    transition: "all 150ms",
-    whiteSpace: "nowrap",
-  },
-  affirmedBtn: {
-    padding: "4px 12px",
-    fontSize: 12,
-    borderRadius: "var(--radius-sm)",
-    border: "1px solid var(--gold)",
-    background: "rgba(201, 169, 92, 0.1)",
-    color: "var(--gold)",
-    cursor: "pointer",
-    fontFamily: "var(--font-ui)",
-    transition: "all 150ms",
-    whiteSpace: "nowrap",
-  },
-  thinkingInput: {
-    width: "100%",
-    padding: "10px 14px",
-    fontSize: 14,
-    color: "var(--text-primary)",
-    border: "1px dashed var(--border-default)",
-    borderRadius: "var(--radius-md)",
-    background: "transparent",
-    outline: "none",
-    fontFamily: "var(--font-ui)",
-    marginTop: 8,
-    transition: "border-color 150ms",
-  },
-  // ── Insight cards ──
-  insightSection: {
-    marginBottom: 40,
-  },
-  insightCard: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-    padding: "16px 20px",
-    borderRadius: "var(--radius-md)",
-    background: "var(--bg-secondary)",
-    border: "1px solid var(--border-subtle)",
-    borderLeft: "3px solid var(--gold)",
-    marginBottom: 8,
-  },
-  insightText: {
-    fontSize: 15,
-    color: "var(--text-primary)",
-    lineHeight: 1.6,
-    fontWeight: 500,
-  },
-  insightSource: {
+  progressLabelActive: {
     fontSize: 11,
-    color: "var(--text-tertiary)",
+    fontWeight: 600,
+    color: C.gold,
+    width: 64,
+    textAlign: "right" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.06em",
+    flexShrink: 0,
+  },
+  progressBarOuter: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    background: C.borderSubtle,
+    overflow: "hidden",
+  },
+  progressBarInner: {
+    height: "100%",
+    borderRadius: 2,
+    background: C.gold,
+    transition: "width 600ms ease",
+  },
+  progressBarInnerPartial: {
+    height: "100%",
+    borderRadius: 2,
+    background: C.goldBorder,
+    transition: "width 600ms ease",
+  },
+  // ── Anchor section ──
+  anchorSection: {
+    marginBottom: 32,
+  },
+  anchorLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: C.textTertiary,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.08em",
+    marginBottom: 8,
     opacity: 0.6,
   },
-  insightActions: {
-    display: "flex",
-    gap: 8,
+  anchorText: {
+    fontSize: 22,
+    fontWeight: 700,
+    color: C.textPrimary,
+    lineHeight: 1.4,
+    letterSpacing: "0.01em",
   },
-  insightConfirmBtn: {
-    padding: "4px 14px",
-    fontSize: 12,
-    borderRadius: "var(--radius-sm)",
-    border: "1px solid var(--gold)",
-    background: "var(--gold)",
-    color: "var(--text-on-brand)",
-    cursor: "pointer",
-    fontFamily: "var(--font-ui)",
-    transition: "all 150ms",
-    whiteSpace: "nowrap",
-    fontWeight: 500,
-  },
-  insightSkipBtn: {
-    padding: "4px 14px",
-    fontSize: 12,
-    borderRadius: "var(--radius-sm)",
-    border: "1px solid transparent",
-    background: "transparent",
-    color: "var(--text-tertiary)",
-    cursor: "pointer",
-    fontFamily: "var(--font-ui)",
-    transition: "all 150ms",
-    whiteSpace: "nowrap",
-    opacity: 0.7,
-  },
-  insightConfirmedCard: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-    padding: "16px 20px",
-    borderRadius: "var(--radius-md)",
-    background: "rgba(201, 169, 92, 0.04)",
-    border: "1px solid var(--gold)",
-    borderLeft: "3px solid var(--gold)",
-    marginBottom: 8,
-  },
-  insightDiscoverBtn: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    minHeight: 40,
-    padding: "10px 24px",
-    background: "transparent",
-    color: "var(--gold)",
-    border: "1px solid var(--gold)",
-    borderRadius: "var(--radius-lg)",
-    fontFamily: "var(--font-ui)",
-    fontSize: 14,
-    fontWeight: 500,
-    cursor: "pointer",
-    transition: "all 150ms",
-  },
-  // ── Ideas section ──
-  ideasSection: {
-    marginBottom: 40,
-  },
-  ideasRow: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 12,
-  },
-  ideaPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 4,
-    padding: "5px 12px",
-    borderRadius: "var(--radius-full)",
-    background: "var(--bg-tertiary)",
-    border: "1px solid var(--border-subtle)",
-    fontSize: 13,
-    color: "var(--text-secondary)",
-    cursor: "pointer",
-    fontFamily: "var(--font-ui)",
-    transition: "all 150ms",
-  },
-  ideaAdd: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 3,
-    padding: "5px 12px",
-    borderRadius: "var(--radius-full)",
-    border: "1px dashed var(--border-default)",
-    background: "transparent",
-    fontSize: 13,
-    color: "var(--text-tertiary)",
-    cursor: "pointer",
-    fontFamily: "var(--font-ui)",
-    transition: "all 150ms",
-  },
-  ideaInput: {
-    padding: "5px 12px",
-    fontSize: 13,
-    borderRadius: "var(--radius-full)",
-    border: "1px solid var(--gold)",
-    background: "var(--bg-secondary)",
-    outline: "none",
-    fontFamily: "var(--font-ui)",
-    color: "var(--text-primary)",
-    minWidth: 120,
-  },
-  // ── Bottom actions ──
-  bottomActions: {
-    display: "flex",
-    justifyContent: "center",
-    gap: 12,
-    paddingTop: 20,
-    borderTop: "1px solid var(--border-subtle)",
-  },
-  generateBtn: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    minHeight: 48,
-    padding: "12px 32px",
-    background: "var(--gold)",
-    color: "var(--text-on-brand)",
+  // ── Divider ──
+  divider: {
+    height: 1,
+    background: C.borderSubtle,
+    margin: "24px 0",
     border: "none",
-    borderRadius: "var(--radius-lg)",
-    fontFamily: "var(--font-ui)",
+  },
+  // ── Loading state ──
+  loadingBox: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    padding: "48px 24px",
+    color: C.textTertiary,
+    fontSize: 15,
+    animation: "none",
+  },
+  // ── Question display ──
+  questionSection: {
+    marginBottom: 32,
+    minHeight: 120,
+  },
+  questionText: {
+    fontSize: 20,
+    fontWeight: 500,
+    color: C.textPrimary,
+    lineHeight: 1.7,
+    letterSpacing: "0.01em",
+  },
+  // ── Input ──
+  inputSection: {
+    marginBottom: 20,
+  },
+  answerInput: {
+    width: "100%",
+    padding: "14px 18px",
+    fontSize: 15,
+    color: C.textPrimary,
+    background: C.bgSecondary,
+    border: `1px solid ${C.borderSubtle}`,
+    borderRadius: 10,
+    outline: "none",
+    fontFamily: C.fontUi,
+    lineHeight: 1.5,
+    transition: "border-color 200ms, box-shadow 200ms",
+    boxSizing: "border-box" as const,
+  },
+  // ── Action buttons ──
+  actions: {
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+  },
+  confirmBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+    padding: "10px 28px",
+    background: C.gold,
+    color: "#fff",
+    border: "none",
+    borderRadius: 10,
+    fontFamily: C.fontUi,
     fontSize: 15,
     fontWeight: 600,
     cursor: "pointer",
@@ -357,60 +275,158 @@ const styles: Record<string, React.CSSProperties> = {
     transition: "all 150ms",
     boxShadow: "0 2px 8px rgba(201,169,92,0.25)",
   },
-  generateBtnDisabled: {
+  switchBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+    padding: "10px 24px",
+    background: "transparent",
+    color: C.textSecondary,
+    border: `1px solid ${C.borderDefault}`,
+    borderRadius: 10,
+    fontFamily: C.fontUi,
+    fontSize: 14,
+    fontWeight: 500,
+    cursor: "pointer",
+    transition: "all 150ms",
+  },
+  // ── Outline button ──
+  outlineSection: {
+    marginTop: 8,
+    paddingTop: 20,
+    borderTop: `1px solid ${C.borderSubtle}`,
+  },
+  outlineBtn: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
     minHeight: 48,
-    padding: "12px 32px",
-    background: "var(--bg-tertiary)",
-    color: "var(--text-tertiary)",
+    padding: "12px 36px",
+    background: C.gold,
+    color: "#fff",
     border: "none",
-    borderRadius: "var(--radius-lg)",
-    fontFamily: "var(--font-ui)",
-    fontSize: 15,
+    borderRadius: 10,
+    fontFamily: C.fontUi,
+    fontSize: 16,
     fontWeight: 600,
-    cursor: "not-allowed",
+    cursor: "pointer",
     letterSpacing: "0.02em",
-    opacity: 0.6,
+    transition: "all 150ms",
+    boxShadow: "0 2px 12px rgba(201,169,92,0.3)",
+    width: "100%",
+  },
+  outlineHint: {
+    fontSize: 12,
+    color: C.textTertiary,
+    textAlign: "center" as const,
+    marginTop: 8,
+    opacity: 0.7,
   },
   generatingText: {
     fontSize: 13,
-    color: "var(--text-tertiary)",
-    alignSelf: "center",
-    marginTop: 8,
+    color: C.textTertiary,
+    textAlign: "center" as const,
+    marginTop: 12,
   },
-  // ── Empty / Loading ──
-  emptyState: {
-    textAlign: "center",
-    padding: "60px 20px",
-    color: "var(--text-tertiary)",
-    fontSize: 14,
-    lineHeight: 1.7,
-  },
-  loadingCard: {
+  // ── Right sidebar: Thinking Board ──
+  sidebar: {
+    width: 280,
+    flexShrink: 0,
+    borderLeft: `1px solid ${C.borderSubtle}`,
+    padding: "40px 24px 80px",
     display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "16px 20px",
-    borderRadius: "var(--radius-md)",
-    background: "var(--bg-secondary)",
-    border: "1px solid var(--border-subtle)",
-    marginBottom: 8,
-    fontSize: 14,
-    color: "var(--text-tertiary)",
+    flexDirection: "column" as const,
+    gap: 24,
   },
-  refreshLink: {
+  sidebarTitle: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: C.textTertiary,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.08em",
+    opacity: 0.5,
+  },
+  sidebarDivider: {
+    height: 1,
+    background: C.borderSubtle,
+    border: "none",
+    margin: 0,
+  },
+  affirmedList: {
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: 10,
+  },
+  affirmedItem: {
+    fontSize: 14,
+    color: C.textPrimary,
+    lineHeight: 1.5,
+    padding: "10px 14px",
+    borderRadius: 8,
+    background: C.bgSecondary,
+    border: `1px solid ${C.borderSubtle}`,
+    borderLeft: `3px solid ${C.gold}`,
+  },
+  affirmedEmpty: {
     fontSize: 13,
-    color: "var(--gold)",
+    color: C.textTertiary,
+    fontStyle: "italic" as const,
+    opacity: 0.6,
+  },
+  evidenceToggle: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12,
+    color: C.textTertiary,
     cursor: "pointer",
     background: "none",
     border: "none",
-    fontFamily: "var(--font-ui)",
-    padding: 0,
-    textDecoration: "underline",
-    textUnderlineOffset: 3,
+    fontFamily: C.fontUi,
+    padding: "4px 0",
+    opacity: 0.7,
+    transition: "opacity 150ms",
+  },
+  evidencePanel: {
+    padding: "10px 14px",
+    borderRadius: 8,
+    background: C.bgSecondary,
+    border: `1px solid ${C.borderSubtle}`,
+    fontSize: 12,
+    color: C.textSecondary,
+    lineHeight: 1.6,
+    whiteSpace: "pre-wrap" as const,
+    wordBreak: "break-word" as const,
+    maxHeight: 200,
+    overflowY: "auto" as const,
+  },
+  // ── No anchor fallback ──
+  fallbackPage: {
+    minHeight: "100vh",
+    display: "flex",
+    flexDirection: "column" as const,
+    alignItems: "center",
+    justifyContent: "center",
+    background: C.bgPrimary,
+    fontFamily: C.fontUi,
+    gap: 16,
+  },
+  fallbackText: {
+    color: C.textSecondary,
+    fontSize: 14,
+  },
+  fallbackBtn: {
+    padding: "10px 24px",
+    background: C.gold,
+    color: "#fff",
+    border: "none",
+    borderRadius: 8,
+    fontSize: 14,
+    cursor: "pointer",
+    fontFamily: C.fontUi,
+    fontWeight: 500,
   },
 };
 
@@ -421,26 +437,20 @@ export default function DiscoverPage() {
 
   // ── State ──
   const [anchor, setAnchor] = useState("");
-  const [editingAnchor, setEditingAnchor] = useState(false);
-  const [anchorDraft, setAnchorDraft] = useState("");
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loadingQuestions, setLoadingQuestions] = useState(false);
-  const [ideas, setIdeas] = useState<string[]>([]);
-  const [ideaInput, setIdeaInput] = useState("");
-  const [addingIdea, setAddingIdea] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [userInput, setUserInput] = useState("");
-
-  // ── Insight state ──
-  const [insights, setInsights] = useState<Insight[]>([]);
-  const [loadingInsights, setLoadingInsights] = useState(false);
-  const [insightFetched, setInsightFetched] = useState(false);
-
-  // ── Pipeline evidence state ──
+  const [currentQuestion, setCurrentQuestion] = useState("");
+  const [userAnswer, setUserAnswer] = useState("");
+  const [affirmedThinking, setAffirmedThinking] = useState<string[]>([]);
+  const [ideas, setIdeas] = useState<string[]>([]);
+  const [engineStage, setEngineStage] = useState("topic");
+  const [evidenceCount, setEvidenceCount] = useState(0);
+  const [pipelineContext, setPipelineContext] = useState("");
   const [showEvidence, setShowEvidence] = useState(false);
-  const [pipelineData, setPipelineData] = useState<any>(null);
 
-  const anchorRef = useRef(anchor);
+  const anchorRef = useRef("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // ── Load on mount ──
   useEffect(() => {
@@ -448,9 +458,14 @@ export default function DiscoverPage() {
     if (a) {
       setAnchor(a);
       anchorRef.current = a;
-      fetchQuestions(a);
+      const savedIdeas = loadIdeas();
+      setIdeas(savedIdeas);
+      // Begin the mentor session
+      startSession(a, savedIdeas);
+    } else {
+      setInitialLoading(false);
     }
-    setIdeas(loadIdeas());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Persist ideas ──
@@ -458,192 +473,141 @@ export default function DiscoverPage() {
     saveIdeas(ideas);
   }, [ideas]);
 
-  // ── Fetch Socratic questions ──
-  const fetchQuestions = useCallback(async (topic: string, history?: { role: string; content: string }[]) => {
-    setLoadingQuestions(true);
+  // ── Focus input when question appears ──
+  useEffect(() => {
+    if (currentQuestion && !loading && !initialLoading) {
+      inputRef.current?.focus();
+    }
+  }, [currentQuestion, loading, initialLoading]);
+
+  // ── Start mentor session ──
+  const startSession = useCallback(
+    async (topic: string, savedIdeas: string[]) => {
+      setInitialLoading(true);
+      try {
+        const r = await fetch("/api/discover/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            anchor: topic,
+            thinking: [],
+            ideas: savedIdeas,
+            history: [],
+          }),
+        });
+        if (r.ok) {
+          const d = await r.json();
+          const q = d.questions?.[0] || "";
+          if (q) setCurrentQuestion(q);
+          if (d.engine?.understanding?.stage) {
+            setEngineStage(d.engine.understanding.stage);
+          }
+          if (d.pipeline) {
+            setEvidenceCount(d.pipeline.evidenceCount || 0);
+            if (d.pipeline.context) setPipelineContext(d.pipeline.context);
+          }
+        }
+      } catch {
+        // silent
+      }
+      // Small delay so the user sees "教授正在理解..." briefly
+      await new Promise((r) => setTimeout(r, 800));
+      setInitialLoading(false);
+    },
+    []
+  );
+
+  // ── Confirm current direction ──
+  const confirmDirection = useCallback(async () => {
+    const answer = userAnswer.trim();
+    const questionText = currentQuestion;
+    if (!questionText) return;
+
+    // Add question to affirmed thinking
+    const newAffirmed = [...affirmedThinking, questionText];
+    setAffirmedThinking(newAffirmed);
+    // Also save to ideas if answer provided
+    if (answer) {
+      setIdeas((prev) => {
+        if (prev.includes(answer)) return prev;
+        return [...prev, answer];
+      });
+    }
+    setUserAnswer("");
+    setLoading(true);
+
     try {
       const r = await fetch("/api/discover/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          anchor: topic,
-          history,
-          thinking: questions.filter((q) => q.affirmed).map((q) => q.text),
-          ideas,
+          anchor: anchorRef.current,
+          thinking: newAffirmed,
+          ideas: answer ? [...ideas, answer] : ideas,
+          history: [
+            { role: "assistant", content: questionText },
+            { role: "user", content: answer || "我确定这个方向" },
+          ],
         }),
       });
       if (r.ok) {
         const d = await r.json();
-        const qs: Question[] = (d.questions || []).map((t: string, i: number) => ({
-          id: `q${Date.now()}-${i}`,
-          text: t,
-          affirmed: false,
-        }));
-        setQuestions(qs);
+        const q = d.questions?.[0] || "";
+        if (q) setCurrentQuestion(q);
+        if (d.engine?.understanding?.stage) {
+          setEngineStage(d.engine.understanding.stage);
+        }
         if (d.pipeline) {
-          setPipelineData(d.pipeline);
+          setEvidenceCount(d.pipeline.evidenceCount || 0);
+          if (d.pipeline.context) setPipelineContext(d.pipeline.context);
         }
       }
     } catch {
       // silent
     }
-    setLoadingQuestions(false);
-  }, []);
+    setLoading(false);
+  }, [currentQuestion, userAnswer, affirmedThinking, ideas]);
 
-  // ── Anchor editing ──
-  const startEditAnchor = () => {
-    setAnchorDraft(anchor);
-    setEditingAnchor(true);
-  };
+  // ── Switch question ──
+  const switchQuestion = useCallback(async () => {
+    if (!currentQuestion) return;
+    setLoading(true);
 
-  const commitAnchor = () => {
-    const trimmed = anchorDraft.trim();
-    if (trimmed && trimmed !== anchor) {
-      setAnchor(trimmed);
-      anchorRef.current = trimmed;
-      saveAnchor(trimmed);
-      setQuestions([]);
-      fetchQuestions(trimmed);
-    }
-    setEditingAnchor(false);
-  };
-
-  // ── Question actions ──
-  const affirmQuestion = (q: Question) => {
-    setQuestions((prev) =>
-      prev.map((x) => (x.id === q.id ? { ...x, affirmed: !x.affirmed } : x))
-    );
-    // Add affirmed question to thinking history + ideas
-    if (!q.affirmed) {
-      setIdeas((prev) => {
-        if (prev.includes(q.text)) return prev;
-        return [...prev, q.text];
-      });
-    } else {
-      setIdeas((prev) => prev.filter((i) => i !== q.text));
-    }
-  };
-
-  const refreshQuestion = async (q: Question) => {
-    // Replace this question with a new one
-    setLoadingQuestions(true);
     try {
       const r = await fetch("/api/discover/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           anchor: anchorRef.current,
+          thinking: affirmedThinking,
+          ideas,
           history: [
-            { role: "user", content: `我正在思考: ${anchorRef.current}` },
-            ...questions
-              .filter((x) => x.id !== q.id)
-              .map((x) => ({ role: "assistant" as const, content: x.text })),
+            { role: "assistant", content: currentQuestion },
             { role: "user", content: "换一个问题" },
           ],
-          thinking: questions.filter((x) => x.affirmed).map((x) => x.text),
-          ideas,
         }),
       });
       if (r.ok) {
         const d = await r.json();
-        const newText = d.questions?.[0] || "换个角度想想，这个问题的前提是什么？";
-        setQuestions((prev) =>
-          prev.map((x) =>
-            x.id === q.id ? { ...x, text: newText, affirmed: false } : x
-          )
-        );
+        const q = d.questions?.[0] || "";
+        if (q) setCurrentQuestion(q);
+        if (d.engine?.understanding?.stage) {
+          setEngineStage(d.engine.understanding.stage);
+        }
+        if (d.pipeline) {
+          setEvidenceCount(d.pipeline.evidenceCount || 0);
+          if (d.pipeline.context) setPipelineContext(d.pipeline.context);
+        }
       }
     } catch {
       // silent
     }
-    setLoadingQuestions(false);
-  };
-
-  // ── Submit user's own thinking ──
-  const submitUserThinking = () => {
-    const trimmed = userInput.trim();
-    if (!trimmed) return;
-    const newQ: Question = {
-      id: `u${Date.now()}`,
-      text: trimmed,
-      affirmed: true,
-    };
-    setQuestions((prev) => [...prev, newQ]);
-    setUserInput("");
-    // Also add to ideas
-    setIdeas((prev) => {
-      if (prev.includes(trimmed)) return prev;
-      return [...prev, trimmed];
-    });
-  };
-
-  // ── Ideas ──
-  const addIdea = (text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    if (ideas.includes(trimmed)) return;
-    setIdeas((prev) => [...prev, trimmed]);
-    setIdeaInput("");
-    setAddingIdea(false);
-  };
-
-  const removeIdea = (idx: number) => {
-    setIdeas((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  // ── Insights ──
-  const fetchInsights = async () => {
-    setLoadingInsights(true);
-    setInsightFetched(false);
-    try {
-      const r = await fetch("/api/discover/insight", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          anchor: anchorRef.current,
-          thinking: thinkingItems,
-          ideas,
-        }),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        const items: Insight[] = (d.insights || []).map(
-          (ins: { text: string; source: string }) => ({
-            text: ins.text,
-            source: ins.source,
-            confirmed: false,
-          })
-        );
-        setInsights(items);
-        setInsightFetched(true);
-      }
-    } catch {
-      // silent
-    }
-    setLoadingInsights(false);
-  };
-
-  const confirmInsight = (idx: number) => {
-    setInsights((prev) =>
-      prev.map((ins, i) => (i === idx ? { ...ins, confirmed: !ins.confirmed } : ins))
-    );
-  };
-
-  const skipInsight = (idx: number) => {
-    setInsights((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  const confirmedInsights = insights.filter((ins) => ins.confirmed);
+    setLoading(false);
+  }, [currentQuestion, affirmedThinking, ideas]);
 
   // ── Generate outline ──
-  const thinkingItems = questions
-    .filter((q) => q.affirmed)
-    .map((q) => q.text);
-
-  const canGenerate = thinkingItems.length >= 3 && confirmedInsights.length >= 2;
-
-  const generateOutline = async () => {
-    if (!canGenerate || generating) return;
+  const generateOutline = useCallback(async () => {
+    if (generating) return;
     setGenerating(true);
     try {
       const r = await fetch("/api/discover/outline", {
@@ -651,10 +615,7 @@ export default function DiscoverPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           anchor: anchorRef.current,
-          thinking: [
-            ...thinkingItems,
-            ...confirmedInsights.map((ins) => ins.text),
-          ],
+          thinking: affirmedThinking,
           ideas,
         }),
       });
@@ -667,37 +628,35 @@ export default function DiscoverPage() {
       // silent
     }
     setGenerating(false);
-  };
+  }, [generating, affirmedThinking, ideas, router]);
 
-  // ── Reset anchor ──
+  // ── Reset ──
   const resetAnchor = () => {
-    setAnchor("");
-    anchorRef.current = "";
-    saveAnchor("");
-    setQuestions([]);
-    setIdeas([]);
-    saveIdeas([]);
+    localStorage.removeItem("sculptor-anchor");
+    router.push("/");
   };
 
-  // ── No anchor yet — redirect to homepage
-  if (!anchor) {
+  // ── Enter key handler ──
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      confirmDirection();
+    }
+  };
+
+  // ── Stage progress computation ──
+  const currentStageIdx = stageIndex(engineStage);
+
+  // ── No anchor ──
+  if (!anchor && !initialLoading) {
     return (
-      <div style={{ ...styles.page, justifyContent: "center", textAlign: "center" }}>
-        <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 16 }}>
+      <div style={styles.fallbackPage}>
+        <p style={styles.fallbackText}>
           请先从首页输入你想思考的话题
         </p>
         <button
+          style={styles.fallbackBtn}
           onClick={() => router.push("/")}
-          style={{
-            padding: "10px 24px",
-            background: "var(--accent-gold, #c9a95c)",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            fontSize: 14,
-            cursor: "pointer",
-            fontFamily: "var(--font-ui)",
-          }}
         >
           回到首页
         </button>
@@ -705,434 +664,263 @@ export default function DiscoverPage() {
     );
   }
 
-  // ── Active workspace ──
+  // ── Main render ──
   return (
     <div style={styles.page}>
-      <div style={styles.container}>
-        {/* Return to anchor */}
-        <button
-          style={styles.backLink}
-          onClick={resetAnchor}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = "1";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = "0.7";
-          }}
-        >
-          换个想法
-        </button>
-
-        {/* ── ANCHOR BAR ── */}
-        <div style={styles.anchorBar}>
-          {editingAnchor ? (
-            <input
-              style={styles.anchorInput}
-              value={anchorDraft}
-              onChange={(e) => setAnchorDraft(e.target.value)}
-              onBlur={commitAnchor}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitAnchor();
-                if (e.key === "Escape") setEditingAnchor(false);
-              }}
-              autoFocus
-            />
-          ) : (
-            <span style={styles.anchorText}>{anchor}</span>
-          )}
-          <span
-            style={{ ...styles.editHint, userSelect: "none" }}
-            onClick={startEditAnchor}
-          >
-            {editingAnchor ? "确认" : "编辑"}
-          </span>
-        </div>
-
-        {/* ── THINKING SECTION ── */}
-        <div style={styles.thinkingSection}>
-          <div style={styles.sectionLabel}>思考</div>
-
-          {loadingQuestions && questions.length === 0 && (
-            <>
-              <div style={styles.loadingCard}>
-                <span>正在生成思考问题</span>
-                <span style={{ opacity: 0.5 }}>···</span>
-              </div>
-            </>
-          )}
-
-          {questions.map((q) => (
-            <div
-              key={q.id}
-              style={{
-                ...styles.questionCard,
-                ...(q.affirmed
-                  ? {
-                      borderColor: "var(--gold)",
-                      background: "rgba(201, 169, 92, 0.04)",
-                    }
-                  : {}),
-              }}
+      <div style={styles.layout}>
+        {/* ── MAIN COLUMN ── */}
+        <div style={styles.main}>
+          {/* Top bar */}
+          <div style={styles.topBar}>
+            <button
+              style={styles.backBtn}
+              onClick={resetAnchor}
               onMouseEnter={(e) => {
-                if (!q.affirmed) {
-                  e.currentTarget.style.background = "var(--bg-tertiary)";
-                  e.currentTarget.style.borderColor = "var(--border-default)";
-                }
+                e.currentTarget.style.opacity = "1";
               }}
               onMouseLeave={(e) => {
-                if (!q.affirmed) {
-                  e.currentTarget.style.background = "var(--bg-secondary)";
-                  e.currentTarget.style.borderColor = "var(--border-subtle)";
-                }
+                e.currentTarget.style.opacity = "0.7";
               }}
             >
-              <span style={styles.questionText}>{q.text}</span>
-              <div style={styles.questionActions}>
+              ← 换个想法
+            </button>
+            <span style={styles.topLabel}>Thinking Progress</span>
+          </div>
+
+          {/* Progress bars */}
+          <div style={styles.progressSection}>
+            {STAGES.map((stage, idx) => {
+              const isCurrent = idx === currentStageIdx;
+              const isPast = idx < currentStageIdx;
+              const isFuture = idx > currentStageIdx;
+              const labelStyle =
+                isCurrent || isPast
+                  ? styles.progressLabelActive
+                  : styles.progressLabel;
+              const barInnerStyle =
+                isPast
+                  ? { ...styles.progressBarInner, width: "100%" }
+                  : isCurrent
+                  ? { ...styles.progressBarInnerPartial, width: "40%" }
+                  : { ...styles.progressBarInner, width: "0%" };
+
+              return (
+                <div key={stage} style={styles.progressRow}>
+                  <span style={labelStyle}>{STAGE_LABELS[stage]}</span>
+                  <div style={styles.progressBarOuter}>
+                    <div style={barInnerStyle} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <hr style={styles.divider} />
+
+          {/* Anchor */}
+          <div style={styles.anchorSection}>
+            <div style={styles.anchorLabel}>今天的命题</div>
+            <div style={styles.anchorText}>{anchor}</div>
+          </div>
+
+          <hr style={styles.divider} />
+
+          {/* Loading state */}
+          {initialLoading && (
+            <div style={styles.loadingBox}>
+              <span>教授正在理解...</span>
+            </div>
+          )}
+
+          {/* Loading next question */}
+          {loading && !initialLoading && (
+            <div style={styles.loadingBox}>
+              <span>教授正在思考...</span>
+            </div>
+          )}
+
+          {/* Current question */}
+          {!initialLoading && !loading && currentQuestion && (
+            <>
+              <div style={styles.questionSection}>
+                <div style={styles.questionText}>{currentQuestion}</div>
+              </div>
+
+              {/* Answer input */}
+              <div style={styles.inputSection}>
+                <input
+                  ref={inputRef}
+                  style={styles.answerInput}
+                  value={userAnswer}
+                  onChange={(e) => setUserAnswer(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = C.gold;
+                    e.currentTarget.style.boxShadow =
+                      "0 0 0 2px rgba(201,169,92,0.15)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = C.borderSubtle;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                  placeholder="输入你的回答，按 Enter 确认..."
+                />
+              </div>
+
+              {/* Action buttons */}
+              <div style={styles.actions}>
                 <button
-                  style={q.affirmed ? styles.affirmedBtn : styles.actionBtn}
-                  onClick={() => affirmQuestion(q)}
+                  style={styles.confirmBtn}
+                  onClick={confirmDirection}
                   onMouseEnter={(e) => {
-                    if (!q.affirmed) {
-                      e.currentTarget.style.borderColor = "var(--gold)";
-                      e.currentTarget.style.color = "var(--gold)";
-                    }
+                    e.currentTarget.style.background = "var(--gold-hover, #b8994a)";
+                    e.currentTarget.style.transform = "translateY(-1px)";
                   }}
                   onMouseLeave={(e) => {
-                    if (!q.affirmed) {
-                      e.currentTarget.style.borderColor = "var(--border-default)";
-                      e.currentTarget.style.color = "var(--text-secondary)";
-                    }
+                    e.currentTarget.style.background = C.gold;
+                    e.currentTarget.style.transform = "none";
                   }}
                 >
-                  {q.affirmed ? "已确定" : "这个方向"}
+                  确认这个方向
                 </button>
                 <button
-                  style={styles.actionBtn}
-                  onClick={() => refreshQuestion(q)}
+                  style={styles.switchBtn}
+                  onClick={switchQuestion}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border-strong)";
-                    e.currentTarget.style.color = "var(--text-primary)";
+                    e.currentTarget.style.borderColor = C.gold;
+                    e.currentTarget.style.color = C.gold;
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border-default)";
-                    e.currentTarget.style.color = "var(--text-secondary)";
+                    e.currentTarget.style.borderColor = C.borderDefault;
+                    e.currentTarget.style.color = C.textSecondary;
                   }}
                 >
                   换一个问题
                 </button>
               </div>
-            </div>
-          ))}
+            </>
+          )}
 
-          {/* Refresh all questions */}
-          {questions.length > 0 && !loadingQuestions && (
-            <div style={{ marginTop: 8, textAlign: "center" }}>
+          {/* Generate outline button — shown after 3+ affirmed */}
+          {affirmedThinking.length >= 3 && !initialLoading && (
+            <div style={styles.outlineSection}>
               <button
-                style={styles.refreshLink}
-                onClick={() => fetchQuestions(anchorRef.current)}
+                style={styles.outlineBtn}
+                onClick={generateOutline}
+                disabled={generating}
+                onMouseEnter={(e) => {
+                  if (!generating) {
+                    e.currentTarget.style.background = "var(--gold-hover, #b8994a)";
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                    e.currentTarget.style.boxShadow =
+                      "0 4px 20px rgba(201,169,92,0.4)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!generating) {
+                    e.currentTarget.style.background = C.gold;
+                    e.currentTarget.style.transform = "none";
+                    e.currentTarget.style.boxShadow =
+                      "0 2px 12px rgba(201,169,92,0.3)";
+                  }
+                }}
               >
-                刷新所有问题
+                {generating ? "生成中···" : "生成大纲"}
               </button>
+              {!generating && (
+                <div style={styles.outlineHint}>
+                  已确定 {affirmedThinking.length} 个方向，可以生成文章结构
+                </div>
+              )}
+              {generating && (
+                <div style={styles.generatingText}>
+                  正在根据你的思考生成文章结构...
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── RIGHT SIDEBAR: Thinking Board ── */}
+        <div style={styles.sidebar}>
+          <div style={styles.sidebarTitle}>目前形成：</div>
+          <hr style={styles.sidebarDivider} />
+
+          {affirmedThinking.length === 0 ? (
+            <div style={styles.affirmedEmpty}>
+              等待你确认第一个方向...
+            </div>
+          ) : (
+            <div style={styles.affirmedList}>
+              {affirmedThinking.map((item, i) => (
+                <div key={i} style={styles.affirmedItem}>
+                  {item}
+                </div>
+              ))}
             </div>
           )}
 
-          {/* User input for own thinking */}
-          <div style={{ marginTop: 16 }}>
-            <input
-              style={styles.thinkingInput}
-              value={userInput}
-              onChange={(e) => setUserInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submitUserThinking();
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "var(--gold)";
-                e.currentTarget.style.borderStyle = "solid";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "var(--border-default)";
-                e.currentTarget.style.borderStyle = "dashed";
-              }}
-              placeholder="写下你的想法，或回应上面的问题..."
-            />
-          </div>
-        </div>
+          <hr style={styles.sidebarDivider} />
 
-        {/* ── PIPELINE EVIDENCE SECTION ── */}
-        {pipelineData && pipelineData.evidenceCount > 0 && (
-          <div style={{ marginBottom: 40 }}>
-            <div
-              style={{
-                fontSize: 12,
-                color: "var(--text-tertiary)",
-                cursor: "pointer",
-                userSelect: "none",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                padding: "4px 0",
-                opacity: 0.6,
-                transition: "opacity 150ms",
-              }}
+          {/* Evidence count */}
+          <div>
+            <button
+              style={styles.evidenceToggle}
               onClick={() => setShowEvidence(!showEvidence)}
               onMouseEnter={(e) => {
                 e.currentTarget.style.opacity = "1";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = "0.6";
+                e.currentTarget.style.opacity = "0.7";
               }}
             >
-              <span>参考来源 ({pipelineData.evidenceCount} 条)</span>
+              <span>参考来源 ({evidenceCount} 条)</span>
               <span style={{ fontSize: 10 }}>
                 {showEvidence ? "▾" : "▸"}
               </span>
-            </div>
-            {showEvidence && pipelineData.context && (
-              <div
-                style={{
-                  marginTop: 8,
-                  padding: "10px 14px",
-                  borderRadius: "var(--radius-md)",
-                  background: "var(--bg-secondary)",
-                  border: "1px solid var(--border-subtle)",
-                  fontSize: 12,
-                  color: "var(--text-secondary)",
-                  lineHeight: 1.6,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  maxHeight: 200,
-                  overflowY: "auto",
-                }}
-              >
-                {pipelineData.context.length > 200
-                  ? pipelineData.context.slice(0, 200) + "…"
-                  : pipelineData.context}
+            </button>
+            {showEvidence && pipelineContext && (
+              <div style={styles.evidencePanel}>
+                {pipelineContext.length > 300
+                  ? pipelineContext.slice(0, 300) + "…"
+                  : pipelineContext}
+              </div>
+            )}
+            {showEvidence && !pipelineContext && (
+              <div style={{ ...styles.evidencePanel, fontStyle: "italic", opacity: 0.6 }}>
+                暂无参考来源详情
               </div>
             )}
           </div>
-        )}
 
-        {/* ── INSIGHT SECTION ── */}
-        {thinkingItems.length >= 3 && (
-          <div style={styles.insightSection}>
-            <div style={styles.sectionLabel}>提炼核心观点</div>
-
-            {!insightFetched && !loadingInsights && (
-              <div style={{ textAlign: "center", padding: "8px 0 16px" }}>
-                <button
-                  style={styles.insightDiscoverBtn}
-                  onClick={fetchInsights}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "rgba(201,169,92,0.08)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  发现我的观点
-                </button>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "var(--text-tertiary)",
-                    opacity: 0.6,
-                    marginTop: 8,
-                  }}
-                >
-                  AI 会从你确定的思考中提炼核心论述
-                </div>
+          {/* Ideas tags */}
+          {ideas.length > 0 && (
+            <>
+              <hr style={styles.sidebarDivider} />
+              <div style={styles.sidebarTitle}>素材与想法</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {ideas.map((idea, i) => (
+                  <span
+                    key={`${idea}-${i}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "4px 10px",
+                      borderRadius: "var(--radius-full, 20px)",
+                      background: C.bgSecondary,
+                      border: `1px solid ${C.borderSubtle}`,
+                      fontSize: 12,
+                      color: C.textSecondary,
+                      fontFamily: C.fontUi,
+                    }}
+                  >
+                    {idea}
+                  </span>
+                ))}
               </div>
-            )}
-
-            {loadingInsights && (
-              <div style={styles.loadingCard}>
-                <span>正在提炼你的核心观点</span>
-                <span style={{ opacity: 0.5 }}>···</span>
-              </div>
-            )}
-
-            {insightFetched &&
-              insights.map((ins, i) => (
-                <div
-                  key={i}
-                  style={
-                    ins.confirmed
-                      ? styles.insightConfirmedCard
-                      : styles.insightCard
-                  }
-                >
-                  <div style={styles.insightText}>{ins.text}</div>
-                  <div style={styles.insightSource}>
-                    来源：{ins.source}
-                  </div>
-                  {!ins.confirmed && (
-                    <div style={styles.insightActions}>
-                      <button
-                        style={styles.insightConfirmBtn}
-                        onClick={() => confirmInsight(i)}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = "var(--gold-hover)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "var(--gold)";
-                        }}
-                      >
-                        确认
-                      </button>
-                      <button
-                        style={styles.insightSkipBtn}
-                        onClick={() => skipInsight(i)}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.opacity = "1";
-                          e.currentTarget.style.color = "var(--text-secondary)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.opacity = "0.7";
-                          e.currentTarget.style.color = "var(--text-tertiary)";
-                        }}
-                      >
-                        略过
-                      </button>
-                    </div>
-                  )}
-                  {ins.confirmed && (
-                    <div style={styles.insightActions}>
-                      <button
-                        style={{
-                          ...styles.insightConfirmBtn,
-                          background: "transparent",
-                          color: "var(--gold)",
-                          border: "1px solid var(--gold)",
-                        }}
-                        onClick={() => confirmInsight(i)}
-                      >
-                        已确认 · 取消
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-
-            {insightFetched && insights.length === 0 && (
-              <div
-                style={{
-                  fontSize: 13,
-                  color: "var(--text-tertiary)",
-                  textAlign: "center",
-                  padding: "12px 0",
-                }}
-              >
-                暂时无法提炼观点，请尝试确定更多思考方向
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── IDEAS SECTION ── */}
-        <div style={styles.ideasSection}>
-          <div style={styles.sectionLabel}>素材与想法</div>
-          <div style={styles.ideasRow}>
-            {ideas.map((idea, i) => (
-              <span
-                key={`${idea}-${i}`}
-                style={styles.ideaPill}
-                onClick={() => removeIdea(i)}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "var(--color-error-light)";
-                  e.currentTarget.style.borderColor = "var(--color-error)";
-                  e.currentTarget.style.color = "var(--color-error)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "var(--bg-tertiary)";
-                  e.currentTarget.style.borderColor = "var(--border-subtle)";
-                  e.currentTarget.style.color = "var(--text-secondary)";
-                }}
-                title="点击移除"
-              >
-                × {idea}
-              </span>
-            ))}
-            {addingIdea ? (
-              <input
-                style={styles.ideaInput}
-                value={ideaInput}
-                onChange={(e) => setIdeaInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") addIdea(ideaInput);
-                  if (e.key === "Escape") {
-                    setAddingIdea(false);
-                    setIdeaInput("");
-                  }
-                }}
-                onBlur={() => {
-                  if (ideaInput.trim()) addIdea(ideaInput);
-                  else {
-                    setAddingIdea(false);
-                    setIdeaInput("");
-                  }
-                }}
-                placeholder="输入关键词..."
-                autoFocus
-              />
-            ) : (
-              <button
-                style={styles.ideaAdd}
-                onClick={() => setAddingIdea(true)}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--gold)";
-                  e.currentTarget.style.color = "var(--gold)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border-default)";
-                  e.currentTarget.style.color = "var(--text-tertiary)";
-                }}
-              >
-                + 添加
-              </button>
-            )}
-          </div>
+            </>
+          )}
         </div>
-
-        {/* ── BOTTOM ACTIONS ── */}
-        <div style={styles.bottomActions}>
-          <button
-            style={canGenerate ? styles.generateBtn : styles.generateBtnDisabled}
-            onClick={generateOutline}
-            disabled={!canGenerate || generating}
-            onMouseEnter={(e) => {
-              if (canGenerate && !generating) {
-                e.currentTarget.style.background = "var(--gold-hover)";
-                e.currentTarget.style.transform = "translateY(-1px)";
-                e.currentTarget.style.boxShadow =
-                  "0 4px 16px rgba(201,169,92,0.35)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (canGenerate && !generating) {
-                e.currentTarget.style.background = "var(--gold)";
-                e.currentTarget.style.transform = "none";
-                e.currentTarget.style.boxShadow =
-                  "0 2px 8px rgba(201,169,92,0.25)";
-              }
-            }}
-          >
-            {generating ? "生成中···" : "生成文章结构"}
-          </button>
-        </div>
-        {!canGenerate && questions.length > 0 && (
-          <div style={styles.generatingText}>
-            {thinkingItems.length < 3
-              ? "需要至少确定 3 个思考方向"
-              : confirmedInsights.length < 2
-              ? "需要至少确认 2 个核心观点后才能生成文章结构"
-              : ""}
-          </div>
-        )}
-        {generating && (
-          <div style={styles.generatingText}>
-            正在根据你的思考和素材生成文章结构...
-          </div>
-        )}
       </div>
     </div>
   );

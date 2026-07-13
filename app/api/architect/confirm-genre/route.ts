@@ -11,13 +11,13 @@ export async function POST(request: NextRequest) {
     const { userInput } = body;
 
     if (!userInput || userInput.length < 2) {
-      return Response.json({ genres: suggestGenres("").map(g => ({ name: g.label, description: g.description, icon: g.icon })) });
+      return Response.json({ genres: suggestGenres("").map(g => ({ name: g.label, description: g.description, icon: "📝" })) });
     }
 
     // v8.0: Use keyword-based detection (fast, no API call)
     const genres = suggestGenres(userInput, 4);
     return Response.json({
-      genres: genres.map(g => ({ name: g.label, description: g.description, icon: g.icon })),
+      genres: genres.map(g => ({ name: g.label, description: g.description, icon: "📝" })),
     });
   } catch {
     return Response.json({ genres: [] });

@@ -57,14 +57,16 @@ export default function ReflectPage() {
         style={{
           minHeight: "100vh",
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           background: "var(--bg-primary)",
-          color: "var(--text-tertiary)",
+          color: "var(--text-secondary)",
           fontFamily: "var(--font-ui)",
+          gap: 16,
         }}
       >
-        加载中...
+        <p style={{ fontSize: 15 }}>正在回顾你的思考过程...</p>
       </div>
     );
   }

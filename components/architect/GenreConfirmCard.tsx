@@ -42,7 +42,7 @@ export default function GenreConfirmCard({ genres, onSelect, onDismiss }: GenreC
               onMouseEnter={e => e.currentTarget.style.borderColor = "var(--gold)"}
               onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border-light)"}
             >
-              <span style={{ fontSize: 24 }}>{g.icon}</span>
+              <span style={{ fontSize: 24 }}>{(g as any).icon || "📝"}</span>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{g.name}</div>
                 <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{g.description}</div>

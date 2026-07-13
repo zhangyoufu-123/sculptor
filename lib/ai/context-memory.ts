@@ -67,14 +67,14 @@ export async function readRecentMemories(
 
   // Touch last_accessed
   if (data && data.length > 0) {
-    const ids = data.map((d) => d.id);
+    const ids = data.map((d: any) => d.id);
     await supabase
       .from("context_memory")
       .update({ last_accessed: new Date().toISOString() })
       .in("id", ids);
   }
 
-  return (data || []).map((d) => ({
+  return (data || []).map((d: any) => ({
     memoryType: d.memory_type,
     memoryData: d.memory_data,
     importance: typeof d.importance === "number" ? d.importance : 0.5,
