@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getEngine } from "@/lib/ai/cognitive-engine";
-import { generateMentorResponse } from "@/lib/ai/mentor-llm";
+import { runCognitivePipeline } from "@/lib/ai/cognitive-pipeline";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -8,9 +8,8 @@ export const maxDuration = 30;
 /**
  * POST /api/discover/chat
  *
- * v2: LLM 负责思考，工程负责提供世界。
- * Engine builds World → Mentor LLM generates free-form response.
- * No fixed LRRCQ fields. No forced question templates.
+ * v2: Three-stage cognitive loop: Understand → Reason → Dialogue.
+ * Stages 1&2 produce NO user output. Only Stage 3 (Dialogue) talks to the user.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -35,25 +34,27 @@ export async function POST(request: NextRequest) {
       roundCount,
     });
 
-    // Get the World Model for this session
     const world = engine.getWorld(anchor?.trim() || "这个话题");
 
-    // Mentor LLM generates free-form response from the World
-    const response = world
-      ? generateMentorResponse(world)
-      : output.decision.question;
+    // Stage 1: Understand → Stage 2: Reason → Stage 3: Dialogue
+    const pipeline = runCognitivePipeline(
+      anchor?.trim() || "这个话题",
+      world || { userThinking: [], roundCount: 0 } as any,
+      thinkingItems
+    );
 
     return Response.json({
-      response,                           // single free-form text
+      response: pipeline.dialogue,
       phase: output.decision.phase,
-      stage: output.understanding.stage,
+      understanding: {
+        score: pipeline.understandingScore,
+        grounding: pipeline.grounding,
+        hypotheses: pipeline.reasoning.hypotheses,
+        preferredHypothesis: pipeline.reasoning.preferredHypothesis,
+      },
+      stageGates: pipeline.stageGates,
       shouldGenerateOutline: output.decision.shouldGenerateOutline,
       evidenceCount: output.evidence.length,
-      evidence: output.evidence.slice(0, 3).map(e => ({
-        text: e.statement.slice(0, 80),
-        source: e.source,
-        isFact: e.isFact,
-      })),
     });
   } catch (error) {
     console.error("[discover/chat]", error);
