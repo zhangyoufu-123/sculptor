@@ -440,7 +440,8 @@ export default function DiscoverPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [currentQuestion, setCurrentQuestion] = useState("");
+  // LRRCQ: full discussion context, not just the question
+  const [lrrcq, setLrrcq] = useState({ restate: "", respond: "", challenge: "", question: "", progress: "" });
   const [userAnswer, setUserAnswer] = useState("");
   const [affirmedThinking, setAffirmedThinking] = useState<string[]>([]);
   const [ideas, setIdeas] = useState<string[]>([]);
@@ -475,10 +476,10 @@ export default function DiscoverPage() {
 
   // ── Focus input when question appears ──
   useEffect(() => {
-    if (currentQuestion && !loading && !initialLoading) {
+    if (lrrcq.question && !loading && !initialLoading) {
       inputRef.current?.focus();
     }
-  }, [currentQuestion, loading, initialLoading]);
+  }, [lrrcq.question, loading, initialLoading]);
 
   // ── Start mentor session ──
   const startSession = useCallback(
@@ -497,8 +498,19 @@ export default function DiscoverPage() {
         });
         if (r.ok) {
           const d = await r.json();
-          const q = d.questions?.[0] || "";
-          if (q) setCurrentQuestion(q);
+          // Extract LRRCQ fields from API response
+          if (d.lrrcq) {
+            setLrrcq({
+              restate: d.lrrcq.restate || "",
+              respond: d.lrrcq.respond || "",
+              challenge: d.lrrcq.challenge || "",
+              question: d.lrrcq.question || d.questions?.[0] || "",
+              progress: d.lrrcq.progress || "",
+            });
+          } else {
+            const q = d.questions?.[0] || "";
+            setLrrcq({ restate: "", respond: "", challenge: "", question: q, progress: "" });
+          }
           if (d.engine?.understanding?.stage) {
             setEngineStage(d.engine.understanding.stage);
           }
@@ -520,13 +532,12 @@ export default function DiscoverPage() {
   // ── Confirm current direction ──
   const confirmDirection = useCallback(async () => {
     const answer = userAnswer.trim();
-    const questionText = currentQuestion;
+    const questionText = lrrcq.question;
     if (!questionText) return;
 
     // Add question to affirmed thinking
     const newAffirmed = [...affirmedThinking, questionText];
     setAffirmedThinking(newAffirmed);
-    // Also save to ideas if answer provided
     if (answer) {
       setIdeas((prev) => {
         if (prev.includes(answer)) return prev;
@@ -552,8 +563,18 @@ export default function DiscoverPage() {
       });
       if (r.ok) {
         const d = await r.json();
-        const q = d.questions?.[0] || "";
-        if (q) setCurrentQuestion(q);
+        if (d.lrrcq) {
+          setLrrcq({
+            restate: d.lrrcq.restate || "",
+            respond: d.lrrcq.respond || "",
+            challenge: d.lrrcq.challenge || "",
+            question: d.lrrcq.question || d.questions?.[0] || "",
+            progress: d.lrrcq.progress || "",
+          });
+        } else {
+          const q = d.questions?.[0] || "";
+          setLrrcq({ restate: "", respond: "", challenge: "", question: q, progress: "" });
+        }
         if (d.engine?.understanding?.stage) {
           setEngineStage(d.engine.understanding.stage);
         }
@@ -566,11 +587,11 @@ export default function DiscoverPage() {
       // silent
     }
     setLoading(false);
-  }, [currentQuestion, userAnswer, affirmedThinking, ideas]);
+  }, [lrrcq.question, userAnswer, affirmedThinking, ideas]);
 
   // ── Switch question ──
   const switchQuestion = useCallback(async () => {
-    if (!currentQuestion) return;
+    if (!lrrcq.question) return;
     setLoading(true);
 
     try {
@@ -582,7 +603,7 @@ export default function DiscoverPage() {
           thinking: affirmedThinking,
           ideas,
           history: [
-            { role: "assistant", content: currentQuestion },
+            { role: "assistant", content: lrrcq.question },
             { role: "user", content: "换一个问题" },
           ],
         }),
@@ -603,7 +624,7 @@ export default function DiscoverPage() {
       // silent
     }
     setLoading(false);
-  }, [currentQuestion, affirmedThinking, ideas]);
+  }, [lrrcq.question, affirmedThinking, ideas]);
 
   // ── Generate outline ──
   const generateOutline = useCallback(async () => {
@@ -739,11 +760,38 @@ export default function DiscoverPage() {
             </div>
           )}
 
-          {/* Current question */}
-          {!initialLoading && !loading && currentQuestion && (
+          {/* LRRCQ: Full discussion display — Restate → Respond → Challenge → Question */}
+          {!initialLoading && !loading && lrrcq.question && (
             <>
               <div style={styles.questionSection}>
-                <div style={styles.questionText}>{currentQuestion}</div>
+                {/* Restate — AI confirms understanding */}
+                {lrrcq.restate && (
+                  <p style={{ fontSize: 15, color: C.textSecondary, marginBottom: 12, lineHeight: 1.7, fontStyle: "italic" }}>
+                    {lrrcq.restate}
+                  </p>
+                )}
+                {/* Respond — AI's own analysis */}
+                {lrrcq.respond && (
+                  <p style={{ fontSize: 15, color: C.textPrimary, marginBottom: 12, lineHeight: 1.7 }}>
+                    {lrrcq.respond}
+                  </p>
+                )}
+                {/* Challenge — counterpoint */}
+                {lrrcq.challenge && (
+                  <p style={{ fontSize: 15, color: C.textSecondary, marginBottom: 12, lineHeight: 1.7, borderLeft: "3px solid #c9a95c", paddingLeft: 12 }}>
+                    {lrrcq.challenge}
+                  </p>
+                )}
+                {/* Question — next step */}
+                <p style={{ fontSize: 17, color: C.textPrimary, fontWeight: 600, marginBottom: 8, lineHeight: 1.6 }}>
+                  {lrrcq.question}
+                </p>
+                {/* Progress */}
+                {lrrcq.progress && (
+                  <p style={{ fontSize: 11, color: C.textTertiary, opacity: 0.6 }}>
+                    {lrrcq.progress}
+                  </p>
+                )}
               </div>
 
               {/* Answer input */}
