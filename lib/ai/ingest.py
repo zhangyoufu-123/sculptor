@@ -7,6 +7,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import List, Dict, Any
 
 # Ensure project root is in Python path
 _project_root = Path(__file__).resolve().parent.parent.parent
