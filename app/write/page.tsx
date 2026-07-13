@@ -29,8 +29,8 @@ export default function WritePage() {
   const [editorContent, setEditorContent] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
 
-  // Ghost Thinking: off by default, toggled via CommandPalette (⌘K)
-  const [ghostEnabled, setGhostEnabled] = useState(false);
+  // Ghost Thinking: ON by default — quiet presence, not intrusive
+  const [ghostEnabled, setGhostEnabled] = useState(true);
 
   // Style setup modal
   const [styleOpen, setStyleOpen] = useState(false);
@@ -413,7 +413,7 @@ export default function WritePage() {
           />
         </main>
 
-        {/* RIGHT: Mentor — collapsed by default */}
+        {/* RIGHT: Ghost Thinking — quiet AI presence */}
         <div style={{
           width: 40, flexShrink: 0,
           background: "var(--bg-secondary)",
@@ -424,13 +424,18 @@ export default function WritePage() {
         }}>
           <span style={{
             writingMode: "vertical-rl",
-            fontSize: 11, color: "var(--text-tertiary)",
+            fontSize: 11, color: ghostEnabled ? "var(--accent-gold, #c9a95c)" : "var(--text-tertiary)",
             fontFamily: "var(--font-ui)",
             letterSpacing: "0.05em",
             userSelect: "none",
             padding: "16px 0",
-          }}>
-            AI 已退出
+            cursor: "pointer",
+            opacity: ghostEnabled ? 1 : 0.3,
+          }}
+            onClick={() => setGhostEnabled(!ghostEnabled)}
+            title={ghostEnabled ? "Ghost Thinking 已开启" : "Ghost Thinking 已关闭"}
+          >
+            {ghostEnabled ? "思考中" : "AI 待命"}
           </span>
         </div>
       </div>
