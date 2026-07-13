@@ -39,6 +39,16 @@ export async function POST(request: NextRequest) {
 
     return Response.json({
       questions,
+      // LRRCQ: Restate → Respond → Challenge → Question
+      lrrcq: {
+        restate: output.decision.restate,
+        respond: output.decision.respond,
+        challenge: output.decision.challenge,
+        question: output.decision.question,
+        progress: output.decision.progress,
+        phase: output.decision.phase,
+        nextAction: output.decision.nextAction,
+      },
       diagnosis: {
         stage: output.understanding.stage,
         confidence: output.understanding.confidence,

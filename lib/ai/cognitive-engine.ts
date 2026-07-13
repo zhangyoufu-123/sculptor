@@ -12,7 +12,7 @@
  */
 
 import type { ThinkingStage } from "./cognitive-diagnoser";
-import { ThinkingStage as TS } from "./cognitive-diagnoser";
+import { ThinkingStage as TS, STAGE_LABELS } from "./cognitive-diagnoser";
 import type { KnowledgeDomain } from "./knowledge-hub";
 import { detectDomain } from "./knowledge-hub";
 import type { Evidence, KnowledgePlan } from "./agents/types";
@@ -54,15 +54,6 @@ export interface ProblemModel {
   gaps: string[];           // 缺失什么
   contradictions: string[]; // 内部矛盾
   shouldChallenge: boolean; // 是否需要挑战观点
-}
-
-/** Layer 3 output: mentoring decision */
-export interface MentorDecision {
-  nextAction: "ask" | "challenge" | "reframe" | "suggest_outline" | "shut_up";
-  question: string;         // 如果要问，问什么（可多行）
-  reasoning: string;        // 为什么做这个决定
-  shouldGenerateOutline: boolean;
-  shouldStopAsking: boolean;
 }
 
 /** Layer 4 output: reflection */
@@ -336,82 +327,167 @@ function detectGaps(stage: ThinkingStage, thinking: string[], ideas: string[]): 
   };
 
   const allGaps = STAGE_GAPS[stage] || [];
-  const text = [...thinking, ...ideas].join(" ");
-
+  const allText = [...thinking, ...ideas].join(" ");
   return allGaps.filter(gap => {
     const keyword = gap.split("——")[1]?.slice(0, 4) || gap;
-    return !text.includes(keyword);
+    return !allText.includes(keyword);
   });
 }
 
+/** Layer 3 output: mentoring decision */
+export interface MentorDecision {
+  nextAction: "restate" | "respond" | "challenge" | "ask" | "reframe" | "suggest_outline" | "shut_up";
+  /** LRRCQ: Restate — AI paraphrases user's point to confirm understanding */
+  restate: string;
+  /** LRRCQ: Respond — AI's own analysis, not just another question */
+  respond: string;
+  /** LRRCQ: Challenge — a specific counterpoint or deeper question */
+  challenge: string;
+  /** LRRCQ: Question — the next step to move forward */
+  question: string;
+  /** Why this decision was made */
+  reasoning: string;
+  /** Progress summary: how far the discussion has come */
+  progress: string;
+  /** Phase rhythm: warmup | understand | debate | conclude | outline */
+  phase: "warmup" | "understand" | "debate" | "conclude" | "outline";
+  shouldGenerateOutline: boolean;
+  shouldStopAsking: boolean;
+}
+
 // ═══════════════════════════════════════════════════════════════
-// Layer 3: Mentor — 决策引擎
+// Layer 3: Mentor — LRRCQ Decision Engine
 // ═══════════════════════════════════════════════════════════════
+//
+// LRRCQ Loop: Listen → Restate → Respond → Challenge → Question
+//
+// AI 不是一个中立的提问者。它是一个有立场、会倾听、敢反驳、
+// 懂得适时闭嘴的导师。每一轮回复必须包含三要素：
+//   ① 回应（Restate/Respond）— 确认理解，不是直接提问
+//   ② 推进（Progress）— 告诉用户讨论在前进
+//   ③ 下一步（Question）— 不是无限聊天
 
 function decide(input: UserInput, understanding: Understanding, model: ProblemModel): MentorDecision {
-  const { roundCount } = input;
-  const { stage } = understanding;
+  const { roundCount, thinking } = input;
+  const { stage, topic, framing } = understanding;
 
-  // Decision matrix
-  let nextAction: MentorDecision["nextAction"] = "ask";
-  let question = "";
-  let reasoning = "";
+  // ── Phase rhythm: warming up → understanding → debating → concluding ──
+  const phase = determinePhase(roundCount, stage, thinking.length);
 
-  if (roundCount >= 5 || stage >= TS.Writing) {
+  // ── Build LRRCQ elements ──
+  const lastUserPoint = thinking.length > 0 ? thinking[thinking.length - 1] : topic;
+  const restate = generateRestate(lastUserPoint, topic, understanding);
+  const respond = generateRespond(phase, understanding, model);
+  const challenge = generateChallenge(phase, understanding, model);
+  const question = determineNextQuestion(phase, understanding, model);
+  const progress = generateProgress(phase, thinking.length, model);
+
+  // ── Action decisions ──
+  let nextAction: MentorDecision["nextAction"];
+  if (roundCount >= 5 || stage >= TS.Structure) {
     nextAction = "shut_up";
-    question = "你觉得我们已经找到足够的方向了吗？";
-    reasoning = "对话已进行多轮，用户已到达高级思维阶段，Mentor 应当退出。";
-  } else if (model.shouldChallenge) {
+  } else if (phase === "debate" && model.shouldChallenge) {
     nextAction = "challenge";
-    question = model.contradictions.length > 0
-      ? `我注意到你的观点中存在一个张力：${model.contradictions[0]}——你怎么看？`
-      : `如果站在完全相反的立场，对方会抓住你论证中的哪个弱点？`;
-    reasoning = "用户已有明确观点但证据薄弱或缺少反例，挑战可以帮助深化思考。";
-  } else if (stage <= TS.Topic && model.gaps.length > 0) {
-    nextAction = "reframe";
-    question = generateReframeQuestion(understanding, model);
-    reasoning = `用户处于${stage === TS.Spark ? "念头" : "主题"}阶段，需要帮助重新框定问题。`;
-  } else if (model.gaps.length > 0) {
-    nextAction = "ask";
-    question = generateGapQuestion(model.gaps[0], understanding.topic);
-    reasoning = `检测到关键缺口：${model.gaps[0]}，应当引导用户填补。`;
-  } else {
+  } else if (phase === "warmup" || phase === "understand") {
+    nextAction = "restate";
+  } else if (phase === "conclude") {
     nextAction = "suggest_outline";
-    question = "你的思考已经比较充分了——要试试把这些整理成一个清晰的结构吗？";
-    reasoning = "用户思维已基本完整，可以进入大纲阶段。";
+  } else {
+    nextAction = "ask";
   }
 
-  const shouldGenerateOutline =
-    stage >= TS.Evidence && roundCount >= 3;
+  const shouldGenerateOutline = phase === "conclude" || phase === "outline";
+  const shouldStopAsking = phase === "outline" || roundCount >= 5;
 
-  const shouldStopAsking = roundCount >= 5 || stage >= TS.Structure;
+  const reasoning = `阶段=${phase}, 思维=${STAGE_LABELS[stage]}, 已确认=${thinking.length}条, 证据=${model.evidence.length}条`;
 
-  return { nextAction, question, reasoning, shouldGenerateOutline, shouldStopAsking };
-}
-
-function generateReframeQuestion(u: Understanding, m: ProblemModel): string {
-  const { topic, framing } = u;
-  if (framing.includes("因果")) return `与其追问「${topic}」的原因，不如先问：这个问题真的成立吗？`;
-  if (framing.includes("方法")) return `在讨论「${topic}」的方法之前，先定义一下：成功的标准是什么？`;
-  return `关于「${topic}」，有没有一种完全不同的理解方式？`;
-}
-
-function generateGapQuestion(gap: string, topic: string): string {
-  const GAP_QUESTIONS: Record<string, (t: string) => string> = {
-    "动机": (t) => `为什么是「${t}」而不是别的话题？这件事情对你个人意味着什么？`,
-    "边界": (t) => `「${t}」的边界在哪里？什么不算「${t}」？`,
-    "具体例子": (t) => `关于「${t}」，能说一个真实的场景而不是抽象描述吗？`,
-    "不同角度": (t) => `如果立场完全相反的人来讨论「${t}」，他们会说什么？`,
-    "自己的观点": (t) => `关于「${t}」，你有没有一个别人可能不同意的观点？`,
-    "反例": (t) => `有没有一个具体的反例，让「${t}」这个说法站不住脚？`,
-    "证据": (t) => `支持你关于「${t}」的立场，最有力的证据是什么？`,
-    "受众": (t) => `你关于「${t}」的内容，最想让谁读到？`,
-    "结构": (t) => `如果要说服别人接受你对「${t}」的看法，你会按什么顺序讲？`,
+  return {
+    nextAction, restate, respond, challenge, question,
+    reasoning, progress, phase,
+    shouldGenerateOutline, shouldStopAsking,
   };
+}
 
-  const key = gap.split("——")[0]?.trim() || "";
-  const generator = GAP_QUESTIONS[key];
-  return generator ? generator(topic) : `关于「${topic}」，你觉得最重要的是什么？`;
+/** Determine the discussion phase based on round count and depth */
+function determinePhase(roundCount: number, stage: ThinkingStage, thinkingCount: number): MentorDecision["phase"] {
+  if (roundCount === 0) return "warmup";
+  if (roundCount === 1 && thinkingCount < 2) return "understand";
+  if (roundCount >= 2 && roundCount <= 3 && thinkingCount >= 2) return "debate";
+  if (roundCount >= 4 || thinkingCount >= 4) return "conclude";
+  if (stage >= TS.Structure) return "outline";
+  return "understand";
+}
+
+/** LRRCQ — Restate: paraphrase user's point to confirm understanding */
+function generateRestate(lastPoint: string, topic: string, u: Understanding): string {
+  if (!lastPoint || lastPoint === topic) {
+    return `我理解你想讨论「${topic}」。让我确认一下——你关心的核心是${u.framing.includes("因果") ? "为什么会出现这种情况" : u.framing.includes("方法") ? "如何应对或解决" : "这个现象的本质是什么"}，对吗？`;
+  }
+  const snippet = lastPoint.length > 30 ? lastPoint.slice(0, 30) + "…" : lastPoint;
+  return `我确认一下我的理解：你不是在说表面现象，而是在说「${snippet}」——我理解得对吗？`;
+}
+
+/** LRRCQ — Respond: AI's own analysis, not a neutral echo */
+function generateRespond(phase: MentorDecision["phase"], u: Understanding, m: ProblemModel): string {
+  if (phase === "warmup") {
+    return `你提出了一个很好的切入点。${u.topic}确实是一个值得深入讨论的方向。`;
+  }
+  if (m.evidence.length >= 2) {
+    const source = m.evidence[0].source;
+    return `根据已有信息（包括${source}），你的观察有一定依据。但我认为还可以从另一个角度看。`;
+  }
+  if (m.causes.length >= 2) {
+    return `你把问题的原因归结为${m.causes[0]}和${m.causes[1] || "其他因素"}——这个分析框架是合理的，但可能忽略了结构性因素。`;
+  }
+  return `你的思考方向是对的。不过我想补充一点：这个问题可能比你目前看到的更复杂。`;
+}
+
+/** LRRCQ — Challenge: specific counterpoint */
+function generateChallenge(phase: MentorDecision["phase"], u: Understanding, m: ProblemModel): string {
+  if (m.contradictions.length > 0) {
+    return `但这里有一个矛盾：${m.contradictions[0]}。如果我们不能解决这个矛盾，前面的推论就不够稳固。`;
+  }
+  if (m.evidence.length < 2 && phase !== "warmup") {
+    return `不过，目前还没有足够的证据来支持你的结论。如果有一个反例会是什么？`;
+  }
+  if (phase === "debate") {
+    return `我有一点不同意见：如果从完全相反的角度看，你的观点是否仍然成立？`;
+  }
+  return "";
+}
+
+/** LRRCQ — Question: the next step, not another generic question */
+function determineNextQuestion(phase: MentorDecision["phase"], u: Understanding, m: ProblemModel): string {
+  if (phase === "warmup") {
+    return `在深入之前，我想先问：关于「${u.topic}」，你最想弄清楚的一个问题是什么？`;
+  }
+  if (phase === "understand") {
+    return `能给我一个具体的场景吗？不是抽象描述，而是你亲身经历过或观察到的真实例子。`;
+  }
+  if (phase === "debate") {
+    if (m.gaps.length > 0) {
+      return `既然我们有了不同视角，下一步：${m.gaps[0].split("——")[1] || m.gaps[0]}？`;
+    }
+    return `如果让你在刚才的讨论中选择一个最值得深挖的方向，你会选什么？`;
+  }
+  if (phase === "conclude") {
+    return "我们已经讨论得比较充分了。要试试把这些整理成一个清晰的结构吗？";
+  }
+  return "你觉得我们已经找到足够的方向了吗？";
+}
+
+/** Progress: summary of how far the discussion has come */
+function generateProgress(phase: MentorDecision["phase"], thinkingCount: number, m: ProblemModel): string {
+  const parts: string[] = [];
+  if (thinkingCount >= 3) parts.push(`已形成${thinkingCount}个讨论方向`);
+  if (m.evidence.length >= 2) parts.push(`${m.evidence.length}条参考来源`);
+  if (m.contradictions.length > 0) parts.push("发现了值得深挖的矛盾");
+  if (phase === "conclude") parts.push("讨论接近成熟，可以整理结构");
+
+  if (parts.length === 0) {
+    return phase === "warmup" ? "讨论刚刚开始" : "讨论正在深入";
+  }
+  return parts.join(" · ");
 }
 
 // ═══════════════════════════════════════════════════════════════
