@@ -1,61 +1,16 @@
 import { NextRequest } from "next/server";
-import { createClient } from "@/lib/deepseek";
-import { isMockMode } from "@/lib/ai/mock-responses";
-import {
-  diagnose,
-  generateNextQuestions,
-} from "@/lib/ai/cognitive-diagnoser";
-import type { Diagnosis } from "@/lib/ai/cognitive-diagnoser";
-import { verifyStatements } from "@/lib/ai/verifier";
-import { professorPipeline } from "@/lib/ai/agents/pipeline";
-import type { ProfessorResponse } from "@/lib/ai/agents/types";
+import { getEngine } from "@/lib/ai/cognitive-engine";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-// ── Helpers ──────────────────────────────────────────────────
-
 /**
- * Enhance a question response with verification and pipeline data.
- * Runs verification on the question text and optionally prefixes
- * the first question when uncertain claims are detected.
+ * POST /api/discover/chat
+ *
+ * The LLM is the last step, not the first.
+ * Cognitive Engine makes all decisions: Understand → Model → Mentor → Reflect.
+ * LLM only expresses the engine's decision in natural language.
  */
-function enhanceResponse(
-  questions: string[],
-  diagnosis: Diagnosis,
-  pipelineResult: ProfessorResponse | null
-) {
-  const combinedQuestions = questions.join(" ");
-  const verificationResult = verifyStatements(combinedQuestions);
-
-  // If uncertain claims exist, prefix the first question with a subtle note
-  const enhancedQuestions = [...questions];
-  if (verificationResult.needsVerification && enhancedQuestions.length > 0) {
-    enhancedQuestions[0] = `[需验证] ${enhancedQuestions[0]}`;
-  }
-
-  return {
-    questions: enhancedQuestions,
-    diagnosis,
-    verification: {
-      needsVerification: verificationResult.needsVerification,
-      confidence: verificationResult.overallConfidence,
-      summary: `[事实] ${verificationResult.factCount} 条 [推理] ${verificationResult.inferenceCount} 条`,
-    },
-    pipeline: pipelineResult
-      ? {
-          context: pipelineResult.answer,
-          evidenceCount: pipelineResult.evidence.length,
-        }
-      : {
-          context: "",
-          evidenceCount: 0,
-        },
-  };
-}
-
-// ── POST /api/discover/chat ──────────────────────────────────
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -66,97 +21,63 @@ export async function POST(request: NextRequest) {
       ideas?: string[];
     };
 
-    const topic = anchor?.trim() || "这个话题";
     const thinkingItems = thinking || [];
     const ideaItems = ideas || [];
     const roundCount = history?.filter((m) => m.role === "user").length || 0;
 
-    // v9.0: Cognitive Diagnoser — diagnose before asking
-    const diagnosis = diagnose(topic, thinkingItems, ideaItems, roundCount);
-
-    // ── Start Professor Pipeline (runs in parallel with question generation) ──
-    const pipelinePromise: Promise<ProfessorResponse | null> =
-      professorPipeline(
-        topic,
-        thinkingItems,
-        ideaItems,
-        diagnosis.stage,
-        "anonymous"
-      ).catch((err) => {
-        console.warn("[discover/chat] Pipeline failed:", err);
-        return null;
-      });
-
-    // Mock mode: use diagnoser-driven question generation
-    if (isMockMode()) {
-      const questions = generateNextQuestions(diagnosis, topic);
-      const pipelineResult = await pipelinePromise;
-      return Response.json(enhanceResponse(questions, diagnosis, pipelineResult));
-    }
-
-    // Real mode: use DeepSeek
-    const client = createClient();
-
-    const systemPrompt = `你是 Mentor，不是 Assistant。你的三个原则：
-1. 绝不抢答案。用户问问题，你用问题回应，引导用户自己找到答案。
-2. 不断提高思考层级。从具体现象上升到抽象问题，从个人经历上升到普遍规律。
-3. 知道什么时候闭嘴。对话超过3轮后，开始帮助用户总结而不是继续发散。最后一轮应该问：'你觉得我们已经找到足够的方向了吗？'
-
-每次回复3-4个问题。问题应该让用户自己发现答案。不要打招呼，不要总结，不要给出观点。只输出问题，每行一个，不要编号。`;
-
-    const historyText = history?.length
-      ? "\n\n之前的对话：\n" +
-        history
-          .map(
-            (m) => `${m.role === "user" ? "用户" : "你"}: ${m.content}`
-          )
-          .join("\n")
-      : "";
-
-    const userContent = `用户正在思考的话题是："${topic}"。${historyText}\n\n请提出3-4个苏格拉底式问题，帮助用户深入探索这个话题。每行一个问题，不要编号，不要前缀。`;
-
-    const response = await client.chat.completions.create({
-      model: "deepseek-chat",
-      temperature: 0.9,
-      max_tokens: 500,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent },
-      ],
+    // ── Cognitive Engine: Understand → Model → Mentor → Reflect ──
+    const engine = getEngine();
+    const output = engine.process({
+      anchor: anchor?.trim() || "这个话题",
+      thinking: thinkingItems,
+      ideas: ideaItems,
+      roundCount,
     });
 
-    const raw = response.choices[0]?.message?.content || "";
-    const questions = raw
-      .split("\n")
-      .map((l) => l.replace(/^\d+[.、)\s]+/, "").trim())
-      .filter(
-        (l) =>
-          l.length > 4 && (l.endsWith("？") || l.endsWith("?") || l.length > 10)
-      )
-      .slice(0, 4);
+    // ── Build response from engine output ──
+    const questions = [output.decision.question];
 
-    // Fallback to diagnoser questions if DeepSeek returned nothing useful
-    if (questions.length === 0) {
-      const fallbackQuestions = generateNextQuestions(diagnosis, topic);
-      const pipelineResult = await pipelinePromise;
-      return Response.json(
-        enhanceResponse(fallbackQuestions, diagnosis, pipelineResult)
-      );
-    }
-
-    const pipelineResult = await pipelinePromise;
-    return Response.json(
-      enhanceResponse(questions, diagnosis, pipelineResult)
-    );
+    return Response.json({
+      questions,
+      diagnosis: {
+        stage: output.understanding.stage,
+        confidence: output.understanding.confidence,
+        detectedTopic: output.understanding.topic,
+        missing: output.model.gaps,
+        shouldGenerateOutline: output.decision.shouldGenerateOutline,
+        shouldStopAsking: output.decision.shouldStopAsking,
+        stageDistribution: {},
+      },
+      engine: {
+        understanding: output.understanding,
+        model: {
+          causes: output.model.causes,
+          contradictions: output.model.contradictions,
+          gaps: output.model.gaps,
+          shouldChallenge: output.model.shouldChallenge,
+        },
+        decision: {
+          nextAction: output.decision.nextAction,
+          reasoning: output.decision.reasoning,
+        },
+        reflection: output.reflection || null,
+      },
+      verification: output.verification,
+      pipeline: {
+        context: output.evidence
+          .map((e) => `[${e.isFact ? "事实" : "推理"}] ${e.source}: ${e.statement.slice(0, 80)}`)
+          .join("\n"),
+        evidenceCount: output.evidence.length,
+      },
+    });
   } catch (error) {
     console.error("[discover/chat]", error);
-    const fallbackDiagnosis = diagnose("这个话题", [], [], 0);
-    const fallbackQuestions = generateNextQuestions(
-      fallbackDiagnosis,
-      "这个话题"
-    );
-    return Response.json(
-      enhanceResponse(fallbackQuestions, fallbackDiagnosis, null)
-    );
+    return Response.json({
+      questions: ["让我们重新开始——你想探索什么话题？"],
+      diagnosis: { stage: 0, confidence: 0, detectedTopic: "", missing: [], shouldGenerateOutline: false, shouldStopAsking: false, stageDistribution: {} },
+      engine: null,
+      verification: { confidence: 0, needsVerification: false, summary: "" },
+      pipeline: { context: "", evidenceCount: 0 },
+    });
   }
 }

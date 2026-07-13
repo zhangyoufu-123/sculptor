@@ -20,6 +20,31 @@
 
 ---
 
+## Principle 0 — 最高原则
+
+> **Protect Thinking Before Improving Writing.**
+>
+> **先保护思考，再优化表达。**
+
+这一条高于所有其他原则。
+
+Sculptor 的 AI 不是替用户思考——而是保护用户的思考。真正优秀的导师不会给出十个观点让用户挑选，而是帮助用户发现自己的观点。
+
+**不要复制 AI 的回答能力，而要复制它的决策过程。**
+
+这决定了整个产品的技术路线：
+
+```
+不是:  User → LLM → 回答
+而是:  User → Cognitive Engine → Mentor Decision → LLM（最后一环）
+```
+
+LLM 在 Sculptor 中的角色是被严格限制的：它只负责将 Cognitive Engine 的决策翻译成自然语言。LLM 永远不参与决策。
+
+
+
+---
+
 ## Part 0: The Philosophy ／ 哲学基础
 
 ### 第一章：写作是什么？
