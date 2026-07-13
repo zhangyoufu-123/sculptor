@@ -34,6 +34,7 @@ import {
   getSourceCitation,
 } from "../knowledge-hub";
 import type { KnowledgeDomain } from "../knowledge-hub";
+import { pythonSearch } from "../retrieval-bridge";
 
 // ── Agent domain → Knowledge Hub domain mapping ──
 const AGENT_TO_HUB_DOMAIN: Record<string, KnowledgeDomain | null> = {
@@ -236,6 +237,26 @@ export function createRetrieverAgent(): RetrieverAgent {
     retrieve(plan, context) {
       const allEvidence: Evidence[] = [];
       const hubUsedDomains = new Set<string>();
+
+      // ── Step 0: Try Python vector store (FAISS) first ──
+      try {
+        const pyResult = pythonSearch(context.anchor, 5);
+        if (pyResult.results && pyResult.results.length > 0) {
+          for (const r of pyResult.results) {
+            allEvidence.push({
+              statement: r.text,
+              source: r.source,
+              sourceType: (r.domain.includes("AI") || r.domain.includes("技术")) ? "academic" as any :
+                          (r.domain.includes("HCI") || r.domain.includes("设计")) ? "design" as any :
+                          (r.domain.includes("哲学")) ? "philosophy" as any : "encyclopedia" as any,
+              confidence: r.confidence,
+              isFact: r.confidence >= 0.75,
+            });
+          }
+        }
+      } catch {
+        // Python vector store not available — fall through to static KB
+      }
 
       // ── Step 1: Detect domain from anchor using knowledge hub ──
       const detectedHubDomain = detectDomain(context.anchor, context.thinking || []);
