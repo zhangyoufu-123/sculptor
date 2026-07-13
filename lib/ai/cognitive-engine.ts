@@ -377,7 +377,7 @@ function decide(input: UserInput, understanding: Understanding, model: ProblemMo
   // ── Build LRRCQ elements ──
   const lastUserPoint = thinking.length > 0 ? thinking[thinking.length - 1] : topic;
   const restate = generateRestate(lastUserPoint, topic, understanding);
-  const respond = generateRespond(phase, understanding, model);
+  const respond = generateRespond(phase, understanding, model, lastUserPoint);
   const challenge = generateChallenge(phase, understanding, model);
   const question = determineNextQuestion(phase, understanding, model);
   const progress = generateProgress(phase, thinking.length, model);
@@ -427,31 +427,41 @@ function generateRestate(lastPoint: string, topic: string, u: Understanding): st
   return `我确认一下我的理解：你不是在说表面现象，而是在说「${snippet}」——我理解得对吗？`;
 }
 
-/** LRRCQ — Respond: AI's own analysis, not a neutral echo */
-function generateRespond(phase: MentorDecision["phase"], u: Understanding, m: ProblemModel): string {
+/** LRRCQ — Respond: AI's own analysis, referencing user's specific input */
+function generateRespond(phase: MentorDecision["phase"], u: Understanding, m: ProblemModel, lastPoint: string): string {
+  const snippet = lastPoint.length > 20 ? `「${lastPoint.slice(0, 20)}…」` : `「${lastPoint}」`;
+
   if (phase === "warmup") {
-    return `你提出了一个很好的切入点。${u.topic}确实是一个值得深入讨论的方向。`;
+    return `你提到${snippet}——这个切入点选得很好，${u.topic}确实是一个被讨论很多但很少有人真正深入的问题。`;
   }
-  if (m.evidence.length >= 2) {
-    const source = m.evidence[0].source;
-    return `根据已有信息（包括${source}），你的观察有一定依据。但我认为还可以从另一个角度看。`;
+  if (m.evidence.length >= 3) {
+    const names = m.evidence.slice(0, 2).map(e => e.source).join("和");
+    return `根据${names}的信息，你关于${snippet}的判断有数据支撑。但我注意到这些来源都聚焦在同一个角度——也许我们需要看看完全相反的立场。`;
+  }
+  if (m.evidence.length >= 1) {
+    return `你提到${snippet}，这和${m.evidence[0].source}中的观察一致。但仅仅找到共鸣还不够——我们需要追问：这个现象是暂时的还是结构性的？`;
   }
   if (m.causes.length >= 2) {
-    return `你把问题的原因归结为${m.causes[0]}和${m.causes[1] || "其他因素"}——这个分析框架是合理的，但可能忽略了结构性因素。`;
+    return `你把原因归于${m.causes[0]}和${m.causes[1] || "其他因素"}——这个分析框架有道理。但我想追问：这两个原因之间是什么关系？是并列的，还是有一个更深层的共同根源？`;
   }
-  return `你的思考方向是对的。不过我想补充一点：这个问题可能比你目前看到的更复杂。`;
+  return `关于${snippet}，你的直觉可能是对的。但直觉需要被检验——我们可以一起试着从反面来推敲一下。`;
 }
 
-/** LRRCQ — Challenge: specific counterpoint */
+/** LRRCQ — Challenge: specific counterpoint drawn from evidence */
 function generateChallenge(phase: MentorDecision["phase"], u: Understanding, m: ProblemModel): string {
   if (m.contradictions.length > 0) {
-    return `但这里有一个矛盾：${m.contradictions[0]}。如果我们不能解决这个矛盾，前面的推论就不够稳固。`;
+    return `等等，我发现了一个矛盾：${m.contradictions[0]}。如果这两个观察都是对的，那我们必须重新审视前面的推论。`;
+  }
+  // Pick a concrete evidence item to challenge with
+  if (m.evidence.length >= 2 && phase === "debate") {
+    const item = m.evidence[1]; // second evidence item as counterpoint
+    return `不过，${item.source}提供了一个不同的视角：${item.statement.slice(0, 40)}…——如果这个是对的，你的结论需要怎么调整？`;
   }
   if (m.evidence.length < 2 && phase !== "warmup") {
-    return `不过，目前还没有足够的证据来支持你的结论。如果有一个反例会是什么？`;
+    return `坦白说，目前我们掌握的论据还不够。在没有足够证据的情况下，我暂时不能完全同意你的推论——你能给我一个具体的反例来检验吗？`;
   }
   if (phase === "debate") {
-    return `我有一点不同意见：如果从完全相反的角度看，你的观点是否仍然成立？`;
+    return `我有一点不同意见：你的论证建立在"${u.topic}"这个前提上，但如果这个前提本身就有问题呢？`;
   }
   return "";
 }
