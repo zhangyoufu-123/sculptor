@@ -5,9 +5,54 @@ import {
   diagnose,
   generateNextQuestions,
 } from "@/lib/ai/cognitive-diagnoser";
+import type { Diagnosis } from "@/lib/ai/cognitive-diagnoser";
+import { verifyStatements } from "@/lib/ai/verifier";
+import { professorPipeline } from "@/lib/ai/agents/pipeline";
+import type { ProfessorResponse } from "@/lib/ai/agents/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
+
+// ── Helpers ──────────────────────────────────────────────────
+
+/**
+ * Enhance a question response with verification and pipeline data.
+ * Runs verification on the question text and optionally prefixes
+ * the first question when uncertain claims are detected.
+ */
+function enhanceResponse(
+  questions: string[],
+  diagnosis: Diagnosis,
+  pipelineResult: ProfessorResponse | null
+) {
+  const combinedQuestions = questions.join(" ");
+  const verificationResult = verifyStatements(combinedQuestions);
+
+  // If uncertain claims exist, prefix the first question with a subtle note
+  const enhancedQuestions = [...questions];
+  if (verificationResult.needsVerification && enhancedQuestions.length > 0) {
+    enhancedQuestions[0] = `[需验证] ${enhancedQuestions[0]}`;
+  }
+
+  return {
+    questions: enhancedQuestions,
+    diagnosis,
+    verification: {
+      needsVerification: verificationResult.needsVerification,
+      confidence: verificationResult.overallConfidence,
+      summary: `[事实] ${verificationResult.factCount} 条 [推理] ${verificationResult.inferenceCount} 条`,
+    },
+    pipeline: pipelineResult
+      ? {
+          context: pipelineResult.answer,
+          evidenceCount: pipelineResult.evidence.length,
+        }
+      : {
+          context: "",
+          evidenceCount: 0,
+        },
+  };
+}
 
 // ── POST /api/discover/chat ──────────────────────────────────
 
@@ -29,10 +74,24 @@ export async function POST(request: NextRequest) {
     // v9.0: Cognitive Diagnoser — diagnose before asking
     const diagnosis = diagnose(topic, thinkingItems, ideaItems, roundCount);
 
+    // ── Start Professor Pipeline (runs in parallel with question generation) ──
+    const pipelinePromise: Promise<ProfessorResponse | null> =
+      professorPipeline(
+        topic,
+        thinkingItems,
+        ideaItems,
+        diagnosis.stage,
+        "anonymous"
+      ).catch((err) => {
+        console.warn("[discover/chat] Pipeline failed:", err);
+        return null;
+      });
+
     // Mock mode: use diagnoser-driven question generation
     if (isMockMode()) {
       const questions = generateNextQuestions(diagnosis, topic);
-      return Response.json({ questions, diagnosis });
+      const pipelineResult = await pipelinePromise;
+      return Response.json(enhanceResponse(questions, diagnosis, pipelineResult));
     }
 
     // Real mode: use DeepSeek
@@ -46,7 +105,12 @@ export async function POST(request: NextRequest) {
 每次回复3-4个问题。问题应该让用户自己发现答案。不要打招呼，不要总结，不要给出观点。只输出问题，每行一个，不要编号。`;
 
     const historyText = history?.length
-      ? "\n\n之前的对话：\n" + history.map((m) => `${m.role === "user" ? "用户" : "你"}: ${m.content}`).join("\n")
+      ? "\n\n之前的对话：\n" +
+        history
+          .map(
+            (m) => `${m.role === "user" ? "用户" : "你"}: ${m.content}`
+          )
+          .join("\n")
       : "";
 
     const userContent = `用户正在思考的话题是："${topic}"。${historyText}\n\n请提出3-4个苏格拉底式问题，帮助用户深入探索这个话题。每行一个问题，不要编号，不要前缀。`;
@@ -65,17 +129,34 @@ export async function POST(request: NextRequest) {
     const questions = raw
       .split("\n")
       .map((l) => l.replace(/^\d+[.、)\s]+/, "").trim())
-      .filter((l) => l.length > 4 && (l.endsWith("？") || l.endsWith("?") || l.length > 10))
+      .filter(
+        (l) =>
+          l.length > 4 && (l.endsWith("？") || l.endsWith("?") || l.length > 10)
+      )
       .slice(0, 4);
 
+    // Fallback to diagnoser questions if DeepSeek returned nothing useful
     if (questions.length === 0) {
-      return Response.json({ questions: generateNextQuestions(diagnosis, topic), diagnosis });
+      const fallbackQuestions = generateNextQuestions(diagnosis, topic);
+      const pipelineResult = await pipelinePromise;
+      return Response.json(
+        enhanceResponse(fallbackQuestions, diagnosis, pipelineResult)
+      );
     }
 
-    return Response.json({ questions, diagnosis });
+    const pipelineResult = await pipelinePromise;
+    return Response.json(
+      enhanceResponse(questions, diagnosis, pipelineResult)
+    );
   } catch (error) {
     console.error("[discover/chat]", error);
     const fallbackDiagnosis = diagnose("这个话题", [], [], 0);
-    return Response.json({ questions: generateNextQuestions(fallbackDiagnosis, "这个话题"), diagnosis: fallbackDiagnosis });
+    const fallbackQuestions = generateNextQuestions(
+      fallbackDiagnosis,
+      "这个话题"
+    );
+    return Response.json(
+      enhanceResponse(fallbackQuestions, fallbackDiagnosis, null)
+    );
   }
 }
