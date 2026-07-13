@@ -21,6 +21,8 @@ import { createRetrieverAgent } from "./agents";
 import { createVerifierAgent } from "./agents";
 import { createCriticAgent } from "./agents";
 import { createProfessorAgent } from "./agents";
+import { createWorld, updateWorld, worldToLLMContext, type WorldModel } from "./world-model";
+import { getDisciplineContext, getMentorContext, type DisciplineContext } from "./discipline-router";
 
 // ═══════════════════════════════════════════════════════════════
 // Types
@@ -547,14 +549,30 @@ export class CognitiveEngine {
   private critic = createCriticAgent();
   private professor = createProfessorAgent();
 
+  /** World Model — the complete cognitive picture (§5, §14) */
+  private worlds: Map<string, WorldModel> = new Map();
+
   /**
    * Process user input through all four layers.
    * This is the ONLY entry point for the Sculptor AI.
    * The LLM is called only at the very end — for expression, not decision.
    */
   process(input: UserInput): EngineOutput {
+    // ── Initialize or load world model ──
+    const sessionKey = input.anchor;
+    let world = this.worlds.get(sessionKey);
+    if (!world) {
+      const domain = detectDomain(input.anchor, input.thinking);
+      const discipline = getDisciplineContext(domain);
+      world = createWorld(input.anchor, domain, discipline.framework);
+      this.worlds.set(sessionKey, world);
+    }
+
     // ── Layer 1: Understand ──
     const understanding = understand(input);
+
+    // ── Get discipline context for this domain ──
+    const discipline = getDisciplineContext(understanding.domain);
 
     // ── Layer 2: Model (with evidence retrieval) ──
     const plan = this.planner.createKnowledgePlan(
@@ -568,10 +586,26 @@ export class CognitiveEngine {
     });
     const verified = this.verifier.verify(retrievalResult);
 
+    // Separate evidence into supporting and counter
+    const supportingEvidence = verified.evidence.filter(e => e.isFact);
+    const counterEvidence = verified.evidence.filter(e => !e.isFact);
+
     const modelOutput = model(input, understanding, verified.evidence);
 
     // ── Layer 3: Mentor (decide) ──
     const decision = decide(input, understanding, modelOutput);
+
+    // ── Update world model (§4: every round must change state) ──
+    world = updateWorld(world, {
+      userThinking: input.thinking.length > world.userThinking.length ? input.thinking : undefined,
+      supportingEvidence,
+      counterEvidence,
+      unknowns: modelOutput.gaps.map(g => g.split("——")[1] || g),
+      stage: understanding.stage,
+      phase: decision.phase,
+      position: input.thinking.length > 0 ? input.thinking[input.thinking.length - 1] : undefined,
+    });
+    this.worlds.set(sessionKey, world);
 
     // ── Layer 4: Reflect ──
     const reflectionOutput = reflect(input, understanding, modelOutput);
