@@ -440,8 +440,8 @@ export default function DiscoverPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  // LRRCQ: full discussion context, not just the question
-  const [lrrcq, setLrrcq] = useState({ restate: "", respond: "", challenge: "", question: "", progress: "" });
+  // v2: Free-form Mentor response, not structured LRRCQ fields
+  const [mentorResponse, setMentorResponse] = useState("");
   const [userAnswer, setUserAnswer] = useState("");
   const [affirmedThinking, setAffirmedThinking] = useState<string[]>([]);
   const [ideas, setIdeas] = useState<string[]>([]);
@@ -476,10 +476,10 @@ export default function DiscoverPage() {
 
   // ── Focus input when question appears ──
   useEffect(() => {
-    if (lrrcq.question && !loading && !initialLoading) {
+    if (mentorResponse && !loading && !initialLoading) {
       inputRef.current?.focus();
     }
-  }, [lrrcq.question, loading, initialLoading]);
+  }, [mentorResponse, loading, initialLoading]);
 
   // ── Start mentor session ──
   const startSession = useCallback(
@@ -498,18 +498,20 @@ export default function DiscoverPage() {
         });
         if (r.ok) {
           const d = await r.json();
-          // Extract LRRCQ fields from API response
-          if (d.lrrcq) {
-            setLrrcq({
-              restate: d.lrrcq.restate || "",
-              respond: d.lrrcq.respond || "",
-              challenge: d.lrrcq.challenge || "",
-              question: d.lrrcq.question || d.questions?.[0] || "",
-              progress: d.lrrcq.progress || "",
-            });
+          // v2: Parse free-form Mentor response
+          if (d.response) {
+            setMentorResponse(d.response);
+          } else if (d.lrrcq) {
+            // Fallback for old format
+            setMentorResponse(d.lrrcq.restate + "\n\n" + d.lrrcq.respond + "\n\n" + d.lrrcq.question);
           } else {
-            const q = d.questions?.[0] || "";
-            setLrrcq({ restate: "", respond: "", challenge: "", question: q, progress: "" });
+            setMentorResponse(d.questions?.[0] || "");
+          }
+          // Parse evidence and phase from new format
+          if (d.evidenceCount) setEvidenceCount(d.evidenceCount);
+          if (d.phase && STAGES.includes(d.phase)) setEngineStage(d.phase);
+          if (d.evidence?.length) {
+            setPipelineContext(d.evidence.map((e: any) => `[${e.isFact ? "事实" : "推理"}] ${e.source}`).join("\n"));
           }
           if (d.engine?.understanding?.stage) {
             setEngineStage(d.engine.understanding.stage);
@@ -532,7 +534,7 @@ export default function DiscoverPage() {
   // ── Confirm current direction ──
   const confirmDirection = useCallback(async () => {
     const answer = userAnswer.trim();
-    const questionText = lrrcq.question;
+    const questionText = mentorResponse;
     if (!questionText) return;
 
     // Add question to affirmed thinking
@@ -563,17 +565,17 @@ export default function DiscoverPage() {
       });
       if (r.ok) {
         const d = await r.json();
-        if (d.lrrcq) {
-          setLrrcq({
-            restate: d.lrrcq.restate || "",
-            respond: d.lrrcq.respond || "",
-            challenge: d.lrrcq.challenge || "",
-            question: d.lrrcq.question || d.questions?.[0] || "",
-            progress: d.lrrcq.progress || "",
-          });
+        if (d.response) {
+          setMentorResponse(d.response);
+        } else if (d.lrrcq) {
+          setMentorResponse(d.lrrcq.restate + "\n\n" + d.lrrcq.respond + "\n\n" + d.lrrcq.question);
         } else {
-          const q = d.questions?.[0] || "";
-          setLrrcq({ restate: "", respond: "", challenge: "", question: q, progress: "" });
+          setMentorResponse(d.questions?.[0] || "");
+        }
+        if (d.evidenceCount) setEvidenceCount(d.evidenceCount);
+        if (d.phase && STAGES.includes(d.phase)) setEngineStage(d.phase);
+        if (d.evidence?.length) {
+          setPipelineContext(d.evidence.map((e: any) => `[${e.isFact ? "事实" : "推理"}] ${e.source}`).join("\n"));
         }
         if (d.engine?.understanding?.stage) {
           setEngineStage(d.engine.understanding.stage);
@@ -587,11 +589,11 @@ export default function DiscoverPage() {
       // silent
     }
     setLoading(false);
-  }, [lrrcq.question, userAnswer, affirmedThinking, ideas]);
+  }, [mentorResponse, userAnswer, affirmedThinking, ideas]);
 
   // ── Switch question ──
   const switchQuestion = useCallback(async () => {
-    if (!lrrcq.question) return;
+    if (!mentorResponse) return;
     setLoading(true);
 
     try {
@@ -603,7 +605,7 @@ export default function DiscoverPage() {
           thinking: affirmedThinking,
           ideas,
           history: [
-            { role: "assistant", content: lrrcq.question },
+            { role: "assistant", content: mentorResponse },
             { role: "user", content: "换一个问题" },
           ],
         }),
@@ -624,7 +626,7 @@ export default function DiscoverPage() {
       // silent
     }
     setLoading(false);
-  }, [lrrcq.question, affirmedThinking, ideas]);
+  }, [mentorResponse, affirmedThinking, ideas]);
 
   // ── Generate outline ──
   const generateOutline = useCallback(async () => {
@@ -760,38 +762,19 @@ export default function DiscoverPage() {
             </div>
           )}
 
-          {/* LRRCQ: Full discussion display — Restate → Respond → Challenge → Question */}
-          {!initialLoading && !loading && lrrcq.question && (
+          {/* v2: Free-form Mentor response */}
+          {!initialLoading && !loading && mentorResponse && (
             <>
               <div style={styles.questionSection}>
-                {/* Restate — AI confirms understanding */}
-                {lrrcq.restate && (
-                  <p style={{ fontSize: 15, color: C.textSecondary, marginBottom: 12, lineHeight: 1.7, fontStyle: "italic" }}>
-                    {lrrcq.restate}
+                {mentorResponse.split("\n").map((line, i) => (
+                  <p key={i} style={{
+                    fontSize: 15, color: C.textPrimary, lineHeight: 1.8,
+                    marginBottom: line.trim() ? 8 : 16,
+                    whiteSpace: "pre-wrap",
+                  }}>
+                    {line || "\u00A0"}
                   </p>
-                )}
-                {/* Respond — AI's own analysis */}
-                {lrrcq.respond && (
-                  <p style={{ fontSize: 15, color: C.textPrimary, marginBottom: 12, lineHeight: 1.7 }}>
-                    {lrrcq.respond}
-                  </p>
-                )}
-                {/* Challenge — counterpoint */}
-                {lrrcq.challenge && (
-                  <p style={{ fontSize: 15, color: C.textSecondary, marginBottom: 12, lineHeight: 1.7, borderLeft: "3px solid #c9a95c", paddingLeft: 12 }}>
-                    {lrrcq.challenge}
-                  </p>
-                )}
-                {/* Question — next step */}
-                <p style={{ fontSize: 17, color: C.textPrimary, fontWeight: 600, marginBottom: 8, lineHeight: 1.6 }}>
-                  {lrrcq.question}
-                </p>
-                {/* Progress */}
-                {lrrcq.progress && (
-                  <p style={{ fontSize: 11, color: C.textTertiary, opacity: 0.6 }}>
-                    {lrrcq.progress}
-                  </p>
-                )}
+                ))}
               </div>
 
               {/* Answer input */}

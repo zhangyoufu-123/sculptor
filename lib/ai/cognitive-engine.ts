@@ -552,6 +552,11 @@ export class CognitiveEngine {
   /** World Model — the complete cognitive picture (§5, §14) */
   private worlds: Map<string, WorldModel> = new Map();
 
+  /** Get the World Model for a session */
+  getWorld(sessionKey: string): WorldModel | undefined {
+    return this.worlds.get(sessionKey);
+  }
+
   /**
    * Process user input through all four layers.
    * This is the ONLY entry point for the Sculptor AI.

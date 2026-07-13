@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getEngine } from "@/lib/ai/cognitive-engine";
+import { generateMentorResponse } from "@/lib/ai/mentor-llm";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -7,9 +8,9 @@ export const maxDuration = 30;
 /**
  * POST /api/discover/chat
  *
- * The LLM is the last step, not the first.
- * Cognitive Engine makes all decisions: Understand → Model → Mentor → Reflect.
- * LLM only expresses the engine's decision in natural language.
+ * v2: LLM 负责思考，工程负责提供世界。
+ * Engine builds World → Mentor LLM generates free-form response.
+ * No fixed LRRCQ fields. No forced question templates.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
     const ideaItems = ideas || [];
     const roundCount = history?.filter((m) => m.role === "user").length || 0;
 
-    // ── Cognitive Engine: Understand → Model → Mentor → Reflect ──
+    // Engine builds the World
     const engine = getEngine();
     const output = engine.process({
       anchor: anchor?.trim() || "这个话题",
@@ -34,60 +35,35 @@ export async function POST(request: NextRequest) {
       roundCount,
     });
 
-    // ── Build response from engine output ──
-    const questions = [output.decision.question];
+    // Get the World Model for this session
+    const world = engine.getWorld(anchor?.trim() || "这个话题");
+
+    // Mentor LLM generates free-form response from the World
+    const response = world
+      ? generateMentorResponse(world)
+      : output.decision.question;
 
     return Response.json({
-      questions,
-      // LRRCQ: Restate → Respond → Challenge → Question
-      lrrcq: {
-        restate: output.decision.restate,
-        respond: output.decision.respond,
-        challenge: output.decision.challenge,
-        question: output.decision.question,
-        progress: output.decision.progress,
-        phase: output.decision.phase,
-        nextAction: output.decision.nextAction,
-      },
-      diagnosis: {
-        stage: output.understanding.stage,
-        confidence: output.understanding.confidence,
-        detectedTopic: output.understanding.topic,
-        missing: output.model.gaps,
-        shouldGenerateOutline: output.decision.shouldGenerateOutline,
-        shouldStopAsking: output.decision.shouldStopAsking,
-        stageDistribution: {},
-      },
-      engine: {
-        understanding: output.understanding,
-        model: {
-          causes: output.model.causes,
-          contradictions: output.model.contradictions,
-          gaps: output.model.gaps,
-          shouldChallenge: output.model.shouldChallenge,
-        },
-        decision: {
-          nextAction: output.decision.nextAction,
-          reasoning: output.decision.reasoning,
-        },
-        reflection: output.reflection || null,
-      },
-      verification: output.verification,
-      pipeline: {
-        context: output.evidence
-          .map((e) => `[${e.isFact ? "事实" : "推理"}] ${e.source}: ${e.statement.slice(0, 80)}`)
-          .join("\n"),
-        evidenceCount: output.evidence.length,
-      },
+      response,                           // single free-form text
+      phase: output.decision.phase,
+      stage: output.understanding.stage,
+      shouldGenerateOutline: output.decision.shouldGenerateOutline,
+      evidenceCount: output.evidence.length,
+      evidence: output.evidence.slice(0, 3).map(e => ({
+        text: e.statement.slice(0, 80),
+        source: e.source,
+        isFact: e.isFact,
+      })),
     });
   } catch (error) {
     console.error("[discover/chat]", error);
     return Response.json({
-      questions: ["让我们重新开始——你想探索什么话题？"],
-      diagnosis: { stage: 0, confidence: 0, detectedTopic: "", missing: [], shouldGenerateOutline: false, shouldStopAsking: false, stageDistribution: {} },
-      engine: null,
-      verification: { confidence: 0, needsVerification: false, summary: "" },
-      pipeline: { context: "", evidenceCount: 0 },
+      response: "让我们重新开始——你想探索什么话题？",
+      phase: "warmup",
+      stage: 0,
+      shouldGenerateOutline: false,
+      evidenceCount: 0,
+      evidence: [],
     });
   }
 }
