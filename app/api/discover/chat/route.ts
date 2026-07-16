@@ -43,9 +43,7 @@ export async function POST(request: NextRequest) {
       state: output.newState,
       goalAchieved: output.goalAchieved,
       move: output.move,
-      goalDistance: output.newState.goal
-        ? output.newState.historyMoves.length
-        : 0,
+      coldStart: output.coldStart,
     });
   } catch (error) {
     console.error("[discover/chat]", error);

@@ -9,7 +9,7 @@
 
 import { selectMove, type Move } from "./moves";
 import { executePrimitive, type Primitive } from "./primitives";
-import { buildGoal, isGoalAchieved, reframeGoal } from "./goal-builder";
+import { buildGoal, isGoalAchieved, reframeGoal, handleColdStart, type ColdStartResult } from "./goal-builder";
 
 // ═══════════════════════════════════════════════════════════════
 // Types
@@ -31,6 +31,7 @@ export interface RuntimeOutput {
   newState: RuntimeState;
   goalAchieved: boolean;
   move: Move;
+  coldStart: ColdStartResult | null;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -58,6 +59,12 @@ export async function runCognitiveStep(
   input: string,
   state: RuntimeState
 ): Promise<RuntimeOutput> {
+  // 0. Cold start detection
+  let coldStart: ColdStartResult | null = null;
+  if (state.round === 0 && state.userThinking.length === 0) {
+    coldStart = handleColdStart(input);
+  }
+
   // 1. Build or refine Goal
   let goal = state.goal;
   if (!goal) {
@@ -86,6 +93,7 @@ export async function runCognitiveStep(
     newState,
     goalAchieved: achieved,
     move,
+    coldStart,
   };
 }
 
