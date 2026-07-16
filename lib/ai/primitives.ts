@@ -7,6 +7,7 @@
 
 import { createClient } from "../deepseek";
 import { isMockMode } from "./mock-responses";
+import { selectFewShots, buildFewShotPrompt } from "./few-shots";
 import type { RuntimeState } from "./cognitive-runtime";
 
 // ═══════════════════════════════════════════════════════════════
@@ -41,10 +42,21 @@ export async function executePrimitive(
     return mockPrimitiveResponse(primary, state);
   }
 
-  // Real mode: call DeepSeek
+  // Real mode: call DeepSeek with Few-Shot on round 0
   const client = createClient();
 
-  const userContent = buildPrimitiveContext(primary, state);
+  // Round 0: use Few-Shot examples to establish response style
+  let systemPrompt = SYSTEM_PROMPT;
+  let userContent = buildPrimitiveContext(primary, state);
+
+  if (state.round === 0) {
+    const shots = selectFewShots(state.unknowns[0] || "", undefined, 2);
+    userContent = buildFewShotPrompt(
+      shots,
+      state.unknowns[0] || "",
+      SYSTEM_PROMPT
+    );
+  }
 
   const response = await client.chat.completions.create({
     model: "deepseek-v4-pro",
@@ -52,7 +64,7 @@ export async function executePrimitive(
     top_p: 0.9,
     max_tokens: 400,
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       { role: "user", content: userContent },
     ],
   });
