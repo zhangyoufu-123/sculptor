@@ -80,7 +80,8 @@ export type ReviewDimension =
   | "style"         // 风格一致性
   | "engagement"    // 吸引力/可读性
   | "structure"     // 结构合理性
-  | "originality";  // 原创性
+  | "originality"   // 原创性
+  | "publishable";  // 出版级质量
 
 export interface AIComment {
   dimension: ReviewDimension;

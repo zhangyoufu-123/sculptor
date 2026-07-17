@@ -43,6 +43,9 @@ export function generateAIComments(
   // Originality check
   comments.push(checkOriginality(paragraph, paragraphIndex));
 
+  // Publishing QC check
+  comments.push(checkPublishable(paragraph, blueprint, paragraphIndex));
+
   return comments.filter((c) => c.severity !== "praise" || c.comment);
 }
 
@@ -405,4 +408,74 @@ function calculateReviewScore(
   const penalty = Math.min(critiqueCount * 0.5, 3);
   const lengthBonus = text.length > 500 ? 1 : 0;
   return Math.min(10, Math.max(1, baseScore - penalty + lengthBonus));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Publishing QC — 出版级质量检查
+// ═══════════════════════════════════════════════════════════════
+
+function checkPublishable(
+  paragraph: string,
+  _bp: ArticleBlueprint,
+  _idx: number
+): AIComment {
+  const issues: string[] = [];
+
+  // Check for AI-isms
+  const aiPhrases = [
+    "值得注意的是", "综上所述", "不可否认", "从某种角度来说",
+    "在当今社会", "随着时代的发展", "越来越重要", "扮演着重要的角色",
+    "首先", "其次", "最后", "总而言之", "毫无疑问",
+  ];
+  const foundAI = aiPhrases.filter(p => paragraph.includes(p));
+  if (foundAI.length > 0) {
+    issues.push(`AI常用语：${foundAI.slice(0, 2).join("、")}`);
+  }
+
+  // Check word economy — weak modifiers
+  const weakWords = ["非常", "很", "特别", "极其", "十分", "相当", "比较"];
+  const weakCount = weakWords.filter(w => paragraph.includes(w)).length;
+  if (weakCount >= 3) {
+    issues.push(`弱修饰词过多（${weakCount}处）——建议删除"非常/很/特别"等词，用更强的动词替代`);
+  }
+
+  // Check sentence length variety
+  const sentences = paragraph.split(/[。！？.!?]/).filter(s => s.trim().length > 0);
+  if (sentences.length >= 3) {
+    const lengths = sentences.map(s => s.length);
+    const allSimilar = lengths.every(l => Math.abs(l - lengths[0]) < 10);
+    if (allSimilar) {
+      issues.push("句子长度过于均匀——出版级写作需要长短交替的呼吸感");
+    }
+  }
+
+  // Check for passive voice (Chinese)
+  const passiveCount = (paragraph.match(/被|受到|遭到|得到/g) || []).length;
+  if (passiveCount >= 3) {
+    issues.push(`被动表达过多（${passiveCount}处）——尽可能用主动语态`);
+  }
+
+  // Check for show vs tell
+  const tellingPhrases = ["很感人", "非常精彩", "令人震撼", "难以忘怀"];
+  const tellingCount = tellingPhrases.filter(p => paragraph.includes(p)).length;
+  if (tellingCount > 0) {
+    issues.push("不要'tell'读者感受——用具体细节'show'出来。避免'很感人''令人震撼'这类概括性评价");
+  }
+
+  if (issues.length === 0) {
+    return {
+      dimension: "publishable",
+      severity: "praise",
+      location: `段落 ${_idx + 1}`,
+      comment: "已达到出版级表达水准——Voice清晰、Economy精确、无AI痕迹",
+    };
+  }
+
+  return {
+    dimension: "publishable",
+    severity: issues.length >= 3 ? "critical" : "suggestion",
+    location: `段落 ${_idx + 1}`,
+    comment: issues.join("；"),
+    suggestion: "出版级标准：每个词都有存在的理由，每句话都有独特的节奏",
+  };
 }
