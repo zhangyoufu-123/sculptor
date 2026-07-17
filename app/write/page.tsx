@@ -97,7 +97,7 @@ export default function WritePage() {
   const activeNode = skeletonNodes.find((n) => n.id === activeNodeId);
   const nodeContext = activeNode ? {
     title: activeNode.label,
-    writingTip: (activeNode as any).writingTip || activeNode.notes,
+    writingTip: (activeNode as { writingTip?: string }).writingTip || activeNode.notes,
     genre: skeletonNodes.length > 0 ? "议论文" : undefined,
   } : undefined;
   const { candidates: ghostCandidates, activeIndex: ghostActiveIndex, isGhostLoading } = useGhostText(editorRef.current, nodeContext);
@@ -472,11 +472,11 @@ export default function WritePage() {
         onClose={() => setCommandPaletteOpen(false)}
         onExecute={(intent, param) => {
           if (intent === "custom") {
-            handleIntent("custom" as any, param);
+            handleIntent("custom" as Intent, param);
           } else if (intent === "ghost-toggle") {
             setGhostEnabled(p => !p);
           } else {
-            handleIntent(intent as any);
+            handleIntent(intent as Intent);
           }
         }}
       />

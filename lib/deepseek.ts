@@ -24,8 +24,9 @@ export async function deepseekCall(
   const client = createClient();
 
   const response = await client.chat.completions.create({
-    model: "deepseek-chat",
+    model: "deepseek-v4-pro",
     temperature,
+    max_tokens: 2000,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: systemPrompt },
