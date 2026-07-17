@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import ThinkingMap from "@/components/ThinkingMap";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -435,6 +436,9 @@ const styles: Record<string, React.CSSProperties> = {
 export default function DiscoverPage() {
   const router = useRouter();
 
+  // Map/chat view toggle
+  const [viewMode, setViewMode] = useState<"chat" | "map">("map");
+
   // ── State ──
   const [anchor, setAnchor] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
@@ -690,6 +694,25 @@ export default function DiscoverPage() {
   // ── Main render ──
   return (
     <div style={styles.page}>
+      {/* View mode toggle */}
+      {viewMode === "map" ? (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+          <div style={{
+            display: "flex", alignItems: "center", padding: "4px 16px",
+            background: "var(--surface-panel)", borderBottom: "1px solid var(--border-subtle)",
+            gap: 8,
+          }}>
+            <button onClick={() => setViewMode("chat")}
+              style={{ background: "var(--surface-hover)", border: "none", color: "var(--text-secondary)", padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontSize: 12, fontFamily: "var(--font-ui)" }}>
+              切换到讨论模式
+            </button>
+            <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+              点击节点可以展开 / 拖拽节点重新组织思考
+            </span>
+          </div>
+          <ThinkingMap anchor={anchor} />
+        </div>
+      ) : (
       <div style={styles.layout}>
         {/* ── MAIN COLUMN ── */}
         <div style={styles.main}>
@@ -953,6 +976,7 @@ export default function DiscoverPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
