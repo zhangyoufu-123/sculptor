@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SessionProvider } from "next-auth/react";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import ContextBarWrapper from "@/components/ContextBarWrapper";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -29,6 +30,7 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <ContextBarWrapper />
         <SessionProvider>
           <ErrorBoundary>{children}</ErrorBoundary>
         </SessionProvider>
