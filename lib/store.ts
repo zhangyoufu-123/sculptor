@@ -41,35 +41,3 @@ export const useUIStore = create<{
   styleProfile: null,
   setStyleProfile: (p) => set({ styleProfile: p }),
 }));
-
-// ═══════════════════════════════════════════════════════════════
-// Context Store — global thinking context for ContextBar
-// ═══════════════════════════════════════════════════════════════
-
-export const useStore = create<{
-  proposition: string;
-  updateProposition: (t: string) => void;
-  assumptions: string[];
-  addAssumption: (a: string) => void;
-  removeAssumption: (i: number) => void;
-  progress: number;
-  setProgress: (p: number) => void;
-  evidenceCount: number;
-  setEvidenceCount: (n: number) => void;
-  position: string;
-  setPosition: (p: string) => void;
-}>((set) => ({
-  proposition: "",
-  updateProposition: (t) => set({ proposition: t }),
-  assumptions: [],
-  addAssumption: (a) => set((s) => ({ assumptions: [...s.assumptions, a] })),
-  removeAssumption: (i) => set((s) => ({
-    assumptions: s.assumptions.filter((_, idx) => idx !== i),
-  })),
-  progress: 0,
-  setProgress: (p) => set({ progress: p }),
-  evidenceCount: 0,
-  setEvidenceCount: (n) => set({ evidenceCount: n }),
-  position: "",
-  setPosition: (p) => set({ position: p }),
-}));
