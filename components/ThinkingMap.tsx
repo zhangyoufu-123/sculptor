@@ -174,13 +174,43 @@ function ContextMenu({
 }: {
   x: number; y: number; nodeId: string; onClose: () => void;
 }) {
-  const { updateDiscussionStatus } = useCanvasStore();
+  const { updateDiscussionStatus, addDiscussionRound, nodes: storeNodes } = useCanvasStore();
+  const { proposition } = useStore();
+
+  const triggerCLI = async (action: string) => {
+    const node = storeNodes.find((n) => n.id === nodeId);
+    const label = node?.label || proposition;
+    updateDiscussionStatus(nodeId, action === "confirm" ? "confirmed" : action === "challenge" ? "challenged" : "branched");
+    addDiscussionRound(nodeId, {
+      direction: action as any,
+      question: `[${{confirm:"确认","challenge":"挑战","branch":"分支"}[action] || action}] ${label}`,
+      answer: "",
+      timestamp: Date.now(),
+    });
+
+    // Call Runtime API
+    try {
+      await fetch("/api/discover/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anchor: label,
+          thinking: [label],
+          ideas: [],
+          history: [
+            { role: "user", content: `${{confirm:"确认这个方向，继续深入","challenge":"反驳这个观点，寻找反例","branch":"从这个方向分支出新的讨论"}[action]}` },
+          ],
+        }),
+      });
+    } catch { /* silent */ }
+    onClose();
+  };
 
   const items = [
-    { label: "确认此方向", action: () => { updateDiscussionStatus(nodeId, "confirmed"); onClose(); }, color: C.green },
-    { label: "反驳 / 挑战", action: () => { updateDiscussionStatus(nodeId, "challenged"); onClose(); }, color: C.red },
-    { label: "再次确认", action: () => { updateDiscussionStatus(nodeId, "confirmed"); onClose(); }, color: C.green },
-    { label: "分支讨论", action: () => { updateDiscussionStatus(nodeId, "branched"); onClose(); }, color: C.blue },
+    { id: "confirm", label: "确认此方向", action: () => triggerCLI("confirm"), color: C.green },
+    { id: "challenge", label: "反驳 / 挑战", action: () => triggerCLI("challenge"), color: C.red },
+    { id: "reconfirm", label: "再次确认", action: () => triggerCLI("confirm"), color: C.green },
+    { id: "branch", label: "分支讨论", action: () => triggerCLI("branch"), color: C.blue },
   ];
 
   return (
