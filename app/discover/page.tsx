@@ -710,7 +710,7 @@ export default function DiscoverPage() {
               点击节点可以展开 / 拖拽节点重新组织思考
             </span>
           </div>
-          <ThinkingMap anchor={anchor} />
+          <ThinkingMap anchor={anchor} onSwitchToChat={() => setViewMode("chat")} />
         </div>
       ) : (
       <div style={styles.layout}>
