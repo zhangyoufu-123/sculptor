@@ -435,6 +435,42 @@ export default function Home() {
           >
             {submitting ? "…" : "开始思考 →"}
           </button>
+
+          {/* Example topics */}
+          <div style={{ marginTop: 32, textAlign: "center" }}>
+            <p style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", marginBottom: 12 }}>
+              或者试试这些话题
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+              {["AI会取代创造力吗", "老家的院子", "为什么越来越焦虑", "关于时间的思考", "写一个关于重逢的故事", "如何写出让人转发的文案"].map((topic) => (
+                <span
+                  key={topic}
+                  onClick={() => { setSpark(topic); }}
+                  style={{
+                    padding: "6px 14px",
+                    background: "var(--surface-panel)",
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: "var(--radius-full)",
+                    fontSize: "var(--text-xs)",
+                    color: "var(--text-secondary)",
+                    cursor: "pointer",
+                    fontFamily: "var(--font-ui)",
+                    transition: "all 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "var(--color-brand-500)";
+                    e.currentTarget.style.color = "var(--color-brand-500)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-subtle)";
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                  }}
+                >
+                  {topic}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

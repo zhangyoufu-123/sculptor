@@ -53,6 +53,11 @@ export default function DiscoverPage() {
   const [evidenceCount, setEvidenceCount] = useState(0);
   const [pipelineContext, setPipelineContext] = useState("");
   const [showEvidence, setShowEvidence] = useState(false);
+  // Blueprint state
+  const [blueprint, setBlueprint] = useState<any>(null);
+  const [completeness, setCompleteness] = useState(0);
+  const [activeSlot, setActiveSlot] = useState<string | null>(null);
+  const [outlineReady, setOutlineReady] = useState(false);
   const anchorRef = useRef("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
@@ -80,6 +85,12 @@ export default function DiscoverPage() {
       if (r.ok) {
         const d = await r.json();
         if (d.response) setMentorResponse(d.response);
+        if (d.blueprint) {
+          setBlueprint(d.blueprint);
+          setCompleteness(d.completeness || 0);
+          setActiveSlot(d.activeSlot);
+          setOutlineReady(d.outlineReady || false);
+        }
         if (d.phase && STAGES.includes(d.phase as any)) setEngineStage(d.phase);
         if (d.evidenceCount) setEvidenceCount(d.evidenceCount);
       }
@@ -185,7 +196,9 @@ export default function DiscoverPage() {
       </div>
 
       {/* Main content */}
-      <div style={{ padding: "20px", maxWidth: 720, margin: "0 auto" }}>
+      <div style={{ display: "flex", maxWidth: 960, margin: "0 auto", padding: "20px", gap: 24 }}>
+        {/* Left: Discussion */}
+        <div style={{ flex: 1, minWidth: 0 }}>
         {/* Anchor */}
         <div style={{ marginBottom: 24 }}>
           <p style={{ fontSize: 11, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>命题</p>
@@ -292,6 +305,76 @@ export default function DiscoverPage() {
               </div>
             </>
           )}
+        </div>
+        </div>
+
+        {/* Right: Blueprint progress */}
+        <div style={{ width: 260, flexShrink: 0 }}>
+          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, position: "sticky", top: 20 }}>
+            <p style={{ fontSize: 11, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>写作蓝图</p>
+
+            {/* Progress bar */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 12, color: C.textSecondary }}>完成度</span>
+                <span style={{ fontSize: 12, color: C.gold, fontWeight: 600 }}>{completeness}%</span>
+              </div>
+              <div style={{ height: 4, background: "#e0d8c8", borderRadius: 2 }}>
+                <div style={{ width: `${completeness}%`, height: "100%", background: C.gold, borderRadius: 2, transition: "width 0.5s" }} />
+              </div>
+            </div>
+
+            {/* Slot list */}
+            {blueprint?.slots?.map((slot: any) => {
+              const isActive = slot.key === activeSlot;
+              const isStable = slot.status === "stable";
+              return (
+                <div key={slot.key} style={{
+                  padding: "6px 0",
+                  borderBottom: `1px solid ${C.border}`,
+                  opacity: isActive ? 1 : isStable ? 0.8 : 0.4,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 14 }}>{isStable ? "✓" : isActive ? "●" : "○"}</span>
+                    <span style={{
+                      fontSize: 12,
+                      color: isActive ? C.gold : isStable ? C.text : C.textTertiary,
+                      fontWeight: isActive ? 600 : 400,
+                    }}>
+                      {slot.label}
+                    </span>
+                    {isStable && (
+                      <span style={{ fontSize: 10, color: C.gold, marginLeft: "auto" }}>
+                        {Math.round(slot.confidence * 100)}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {!blueprint && (
+              <p style={{ fontSize: 12, color: C.textTertiary, fontStyle: "italic" }}>
+                开始讨论后，这里会显示你的写作蓝图——每个部分完成时都会自动更新。
+              </p>
+            )}
+
+            {/* Outline ready button */}
+            {outlineReady && (
+              <button
+                onClick={generateOutline}
+                style={{
+                  marginTop: 16, width: "100%", padding: "10px 0",
+                  background: C.gold, color: "#fff", border: "none",
+                  borderRadius: 8, cursor: "pointer", fontSize: 14,
+                  fontFamily: C.font, fontWeight: 600,
+                  animation: "pulse 2s infinite",
+                }}
+              >
+                生成大纲 ✨
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
