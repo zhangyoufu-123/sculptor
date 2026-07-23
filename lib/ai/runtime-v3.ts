@@ -345,7 +345,14 @@ function thinkStep(state: RuntimeState, gap: ReturnType<typeof findMissing>): st
 
     case "output":
       const allSlots = state.blueprint.map((s) => `${s.status === "stable" ? "✓" : "○"} ${s.label}: ${s.value.slice(0, 40) || "(空)"}`).join("\n");
-      return context + `大纲已经就绪。恭喜用户，文章架构已经完全准备好了。列出蓝图中的每个部分。建议下一步：点击生成大纲进入写作。100字以内。\n\n${allSlots}`;
+      return `【任务：生成大纲，不要提问】
+
+文章架构已经准备好了。以下是写作蓝图：
+
+${allSlots}
+
+请恭喜用户，展示蓝图，并建议点击"生成大纲"开始写作。
+不要问任何新问题。直接呈现结果。120字以内。`;
   }
 }
 
@@ -389,6 +396,9 @@ async function outputStep(state: RuntimeState, thought: string): Promise<string>
 }
 
 function mockOutput(state: RuntimeState): string {
+  if (state.outputReady) {
+    return `恭喜！你的写作蓝图已经完成。\n\n${state.blueprint.map((s) => `✓ ${s.label}: ${s.value.slice(0, 50) || "(待补充)"}`).join("\n")}\n\n所有部分就绪——现在就可以生成大纲开始写作了。`;
+  }
   if (state.completeness === 0) {
     return `你好，我是 Sculptor 的写作搭档。我们可以一起把「${state.goal}」慢慢展开。\n\n不用想太多——你现在脑海里最先浮现的一个画面、一句话或者一个疑问是什么？`;
   }
