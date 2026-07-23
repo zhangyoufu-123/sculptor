@@ -55,6 +55,7 @@ export default function DiscoverPage() {
   const [showEvidence, setShowEvidence] = useState(false);
   // Blueprint state
   const [blueprint, setBlueprint] = useState<any>(null);
+  const [sessionState, setSessionState] = useState<any>(null);
   const [completeness, setCompleteness] = useState(0);
   const [activeSlot, setActiveSlot] = useState<string | null>(null);
   const [outlineReady, setOutlineReady] = useState(false);
@@ -85,6 +86,7 @@ export default function DiscoverPage() {
       if (r.ok) {
         const d = await r.json();
         if (d.response) setMentorResponse(d.response);
+        if (d.state) setSessionState(d.state);
         if (d.blueprint) {
           setBlueprint(d.blueprint);
           setCompleteness(d.completeness || 0);
@@ -145,7 +147,7 @@ export default function DiscoverPage() {
     try {
       const r = await fetch("/api/discover/outline", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ anchor: anchorRef.current, thinking: affirmedThinking, ideas }),
+        body: JSON.stringify({ anchor: anchorRef.current, state: sessionState }),
       });
       if (r.ok) { const d = await r.json(); saveOutline(d.outline); router.push("/write"); }
     } catch {}
