@@ -196,22 +196,19 @@ export default function DiscoverPage() {
             <p style={{ fontSize: 13, color: C.textTertiary }}>Sculptor 正在思考从哪里开始最合适...</p>
             <div style={{ marginTop: 20, display: "flex", justifyContent: "center", gap: 6 }}>
               {[0,1,2].map(i => (
-                <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: C.gold, opacity: 0.3 + i * 0.3, animation: `pulse 1.5s ${i*0.2}s infinite` }} />
+                <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: C.gold, animation: `pulse 1.5s ${i*0.2}s infinite` }} />
               ))}
             </div>
           </div>
-        ) : loading ? (
-          <div style={{ textAlign: "center", padding: "60px 0" }}>
-            <p style={{ fontSize: 15, color: C.textSecondary }}>教授正在思考…</p>
-          </div>
         ) : mentorResponse ? (
           <>
-            <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24, marginBottom: 16 }}>
+            <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24, marginBottom: 16, opacity: loading ? 0.5 : 1 }}>
               {mentorResponse.split("\n").map((line, i) => (
                 <p key={i} style={{ fontSize: 15, color: C.text, lineHeight: 1.8, marginBottom: line.trim() ? 8 : 16, fontFamily: C.fontBody }}>
                   {line || "\u00A0"}
                 </p>
               ))}
+              {loading && <p style={{ fontSize: 12, color: C.gold, marginTop: 12 }}>教授正在思考…</p>}
             </div>
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
               <input
@@ -219,23 +216,25 @@ export default function DiscoverPage() {
                 value={userAnswer}
                 onChange={(e) => setUserAnswer(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="输入你的回答，Enter 确认…"
+                placeholder={loading ? "正在思考…" : "输入你的回答，Enter 确认…"}
+                disabled={loading}
                 style={{
                   flex: 1, padding: "12px 16px", fontSize: 14,
                   border: `1px solid ${C.border}`, borderRadius: 8,
-                  background: C.panel, color: C.text, fontFamily: C.font,
+                  background: loading ? "#f5f0e8" : C.panel, color: C.text, fontFamily: C.font,
                   outline: "none",
                 }}
               />
               <button
                 onClick={confirmDirection}
-                style={{ padding: "12px 20px", background: C.gold, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontFamily: C.font, fontWeight: 500 }}
+                disabled={loading}
+                style={{ padding: "12px 20px", background: loading ? "#d4c8a8" : C.gold, color: "#fff", border: "none", borderRadius: 8, cursor: loading ? "default" : "pointer", fontSize: 14, fontFamily: C.font, fontWeight: 500 }}
               >确认</button>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={switchQuestion} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textSecondary, padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontFamily: C.font }}>换一个问题</button>
+              <button onClick={switchQuestion} disabled={loading} style={{ opacity: loading ? 0.5 : 1, background: "none", border: `1px solid ${C.border}`, color: C.textSecondary, padding: "8px 16px", borderRadius: 6, cursor: loading ? "default" : "pointer", fontSize: 12, fontFamily: C.font }}>换一个问题</button>
               {outlineReady && (
-                <button onClick={generateOutline} disabled={generating} style={{ background: C.gold, color: "#fff", border: "none", padding: "8px 20px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontFamily: C.font, fontWeight: 600 }}>
+                <button onClick={generateOutline} disabled={generating || loading} style={{ background: C.gold, color: "#fff", border: "none", padding: "8px 20px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontFamily: C.font, fontWeight: 600 }}>
                   {generating ? "生成中…" : "生成大纲 ✨"}
                 </button>
               )}
