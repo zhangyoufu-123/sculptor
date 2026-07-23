@@ -176,23 +176,7 @@ export default function DiscoverPage() {
         <button onClick={() => router.push("/")} style={{ background: "none", border: "none", color: C.textTertiary, cursor: "pointer", fontSize: 13, fontFamily: C.font }}>← 换想法</button>
         <span style={{ fontSize: 11, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Thinking Progress</span>
         <div style={{ flex: 1 }} />
-        {/* View toggle */}
-        <button onClick={() => setViewMode("canvas")} style={{ padding: "4px 12px", fontSize: 12, background: viewMode === "canvas" ? C.gold : "transparent", color: viewMode === "canvas" ? "#fff" : C.textSecondary, border: viewMode === "canvas" ? "none" : `1px solid ${C.border}`, borderRadius: 6, cursor: "pointer", fontFamily: C.font }}>画布</button>
-        <button onClick={() => setViewMode("chat")} style={{ padding: "4px 12px", fontSize: 12, background: viewMode === "chat" ? C.gold : "transparent", color: viewMode === "chat" ? "#fff" : C.textSecondary, border: viewMode === "chat" ? "none" : `1px solid ${C.border}`, borderRadius: 6, cursor: "pointer", fontFamily: C.font }}>讨论</button>
-      </div>
-
-      {/* Progress bar */}
-      <div style={{ padding: "12px 20px", display: "flex", gap: 12 }}>
-        {STAGES.map((stage, idx) => {
-          const isCurrent = idx === currentStageIdx;
-          const isPast = idx < currentStageIdx;
-          return (
-            <div key={stage} style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
-              <div style={{ width: "100%", height: 3, background: isPast ? C.gold : isCurrent ? C.gold : "#e0d8c8", borderRadius: 2, opacity: isCurrent || isPast ? 1 : 0.3 }} />
-              <span style={{ fontSize: 10, color: isCurrent ? C.gold : C.textTertiary, whiteSpace: "nowrap", fontWeight: isCurrent ? 600 : 400 }}>{STAGE_LABELS[stage]}</span>
-            </div>
-          );
-        })}
+        <span style={{ fontSize: 12, color: C.textSecondary }}>蓝图 {completeness}%</span>
       </div>
 
       {/* Main content */}
@@ -258,30 +242,6 @@ export default function DiscoverPage() {
             </div>
           </>
         ) : null}
-
-        {/* Sidebar: affirmed + ideas */}
-        <div style={{ marginTop: 32, borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
-          {affirmedThinking.length > 0 && (
-            <>
-              <p style={{ fontSize: 11, color: C.textTertiary, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>已确认的方向</p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
-                {affirmedThinking.map((item, i) => (
-                  <span key={i} style={{ background: "#faf6ed", border: `1px solid ${C.border}`, padding: "4px 12px", borderRadius: 20, fontSize: 12, color: C.textSecondary }}>{item.length > 30 ? item.slice(0, 30) + "…" : item}</span>
-                ))}
-              </div>
-            </>
-          )}
-          {ideas.length > 0 && (
-            <>
-              <p style={{ fontSize: 11, color: C.textTertiary, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>素材与想法</p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {ideas.map((idea, i) => (
-                  <span key={i} style={{ background: C.panel, border: `1px solid ${C.border}`, padding: "4px 12px", borderRadius: 20, fontSize: 12, color: C.textSecondary }}>{idea}</span>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
         </div>
 
         {/* Right: Blueprint progress — 40% */}
