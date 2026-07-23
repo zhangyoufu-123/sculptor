@@ -382,6 +382,20 @@ async function outputStep(state: RuntimeState, thought: string): Promise<string>
   if (isMockMode()) return mockOutput(state);
 
   const client = createClient();
+
+  // Output mode: use strict instructions, low temperature
+  if (state.outputReady) {
+    const response = await client.chat.completions.create({
+      model: "deepseek-v4-pro",
+      temperature: 0.3,
+      max_tokens: 300,
+      messages: [
+        { role: "system", content: "你正在协助用户完成写作大纲。不要提问。不要反问。不要建议后续步骤。只呈现现有成果。" },
+        { role: "user", content: thought },
+      ],
+    });
+    return response.choices[0]?.message?.content || mockOutput(state);
+  }
   const response = await client.chat.completions.create({
     model: "deepseek-v4-pro",
     temperature: 0.7,
