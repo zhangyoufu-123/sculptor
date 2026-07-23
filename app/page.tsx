@@ -366,7 +366,7 @@ export default function Home() {
             value={spark}
             onChange={(e) => setSpark(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="一句话、一个问题、几个关键词"
+            placeholder="今天想写什么？"
             disabled={submitting}
             style={{
               width: "100%",

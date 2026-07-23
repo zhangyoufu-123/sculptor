@@ -196,9 +196,9 @@ export default function DiscoverPage() {
       </div>
 
       {/* Main content */}
-      <div style={{ display: "flex", maxWidth: 960, margin: "0 auto", padding: "20px", gap: 24 }}>
-        {/* Left: Discussion */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", maxWidth: 1440, margin: "0 auto", padding: "20px", gap: 24 }}>
+        {/* Left: Discussion — 60% */}
+        <div style={{ flex: "0 0 60%", minWidth: 0 }}>
         {/* Anchor */}
         <div style={{ marginBottom: 24 }}>
           <p style={{ fontSize: 11, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>命题</p>
@@ -308,8 +308,8 @@ export default function DiscoverPage() {
         </div>
         </div>
 
-        {/* Right: Blueprint progress */}
-        <div style={{ width: 260, flexShrink: 0 }}>
+        {/* Right: Blueprint progress — 40% */}
+        <div style={{ flex: "0 0 40%", minWidth: 300 }}>
           <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, position: "sticky", top: 20 }}>
             <p style={{ fontSize: 11, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>写作蓝图</p>
 
