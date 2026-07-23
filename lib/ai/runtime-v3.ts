@@ -244,7 +244,10 @@ function understandStep(state: RuntimeState): RuntimeState {
   const stable = state.blueprint.filter((s) => s.status === "stable").length;
   const total = state.blueprint.length;
   state.completeness = total > 0 ? Math.round((stable / total) * 100) : 0;
-  state.outputReady = stable >= total;
+  // Don't overwrite outputReady if already set by parseStep
+  if (!state.outputReady) {
+    state.outputReady = stable >= total;
+  }
   return state;
 }
 
