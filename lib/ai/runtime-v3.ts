@@ -135,6 +135,29 @@ export async function runtimeLoop(
 // ═══════════════════════════════════════════════════════════════
 
 function parseStep(state: RuntimeState, input: string): RuntimeState {
+  // Handle "开始写" / "可以写了" → trigger outline
+  if (/开始写|可以写了|写吧|生成大纲|做大纲|出大纲/i.test(input)) {
+    // Mark all filling slots as stable
+    state.blueprint = state.blueprint.map((s) =>
+      s.status === "filling" ? { ...s, confidence: 0.8, status: "stable" } : s
+    );
+    return state;
+  }
+
+  // Handle "说错了" / "不对" → reset current slot
+  if (/说错了|不对|不是|搞错了|重新来|换一个方向/i.test(input)) {
+    const activeIdx = state.blueprint.findIndex((s) => s.status === "filling");
+    if (activeIdx >= 0) {
+      state.blueprint[activeIdx] = {
+        ...state.blueprint[activeIdx],
+        value: "",
+        confidence: 0,
+        status: "empty",
+      };
+    }
+    return state;
+  }
+
   // If user is confirming a slot
   if (input && /好了|可以了|没问题|满意|就这样|✓|ok/i.test(input)) {
     const activeIdx = state.blueprint.findIndex((s) => s.status === "filling");
@@ -142,18 +165,22 @@ function parseStep(state: RuntimeState, input: string): RuntimeState {
       const s = state.blueprint[activeIdx];
       state.blueprint[activeIdx] = { ...s, confidence: 1, status: "stable" };
     }
+    return state;
   }
 
   // If user provided new content, merge into current filling slot
-  if (input && !/好了|可以了|没问题|满意|就这样|✓|ok/i.test(input)) {
+  if (input && !/好了|可以了|没问题|满意|就这样|✓|ok|说错了|不对|不是|开始写/i.test(input)) {
     const activeIdx = state.blueprint.findIndex((s) => s.status === "filling");
     if (activeIdx >= 0) {
       const s = state.blueprint[activeIdx];
       const newValue = s.value ? `${s.value}\n${input}` : input;
       const conf = calcConfidence(newValue);
+      // Cap filling iterations: if still < 0.45 after 3+ inputs, mark as stable and move on
+      const inputCount = newValue.split("\n").filter((l: string) => l.trim()).length;
+      const forceStable = inputCount >= 3 && conf < 0.5;
       state.blueprint[activeIdx] = {
-        ...s, value: newValue, confidence: conf,
-        status: conf >= 0.7 ? "stable" : "filling",
+        ...s, value: newValue, confidence: forceStable ? 0.65 : conf,
+        status: conf >= 0.7 || forceStable ? "stable" : "filling",
       };
     }
     // If no slot is filling, start the first empty slot
