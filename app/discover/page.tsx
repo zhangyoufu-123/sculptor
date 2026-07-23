@@ -205,83 +205,59 @@ export default function DiscoverPage() {
           <p style={{ fontSize: 20, color: C.text, fontWeight: 600, margin: 0, fontFamily: C.fontBody }}>{anchor}</p>
         </div>
 
-        {viewMode === "canvas" ? (
-          /* Canvas view — accumulated thinking */
-          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24, minHeight: 200 }}>
-            <p style={{ fontSize: 12, color: C.textTertiary, marginBottom: 16 }}>思考地图</p>
-            {affirmedThinking.length === 0 ? (
-              <p style={{ fontSize: 14, color: C.textTertiary, fontStyle: "italic", textAlign: "center", padding: "40px 0" }}>
-                确认一些方向后，这里会生长出你的思考地图。
-              </p>
-            ) : (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                {affirmedThinking.map((item, i) => (
-                  <div key={i} style={{
-                    background: "#faf6ed", border: `1px solid ${C.border}`, borderRadius: 8,
-                    padding: "10px 16px", fontSize: 13, color: C.text, maxWidth: 300,
-                    position: "relative",
-                  }}>
-                    <span style={{ fontSize: 10, color: C.gold, position: "absolute", top: -8, left: 12, background: C.panel, padding: "0 6px" }}>节点 {i + 1}</span>
-                    {item.length > 60 ? item.slice(0, 60) + "…" : item}
-                  </div>
-                ))}
-              </div>
-            )}
-            {evidenceCount > 0 && (
-              <p style={{ fontSize: 11, color: C.textTertiary, marginTop: 16 }}>📋 {evidenceCount} 条参考证据</p>
-            )}
+        {/* Discussion */}
+        {initialLoading ? (
+          <div style={{ textAlign: "center", padding: "60px 0" }}>
+            <p style={{ fontSize: 18, color: C.text, fontFamily: C.fontBody, marginBottom: 8 }}>正在理解你的命题</p>
+            <p style={{ fontSize: 13, color: C.textTertiary }}>Sculptor 正在思考从哪里开始最合适...</p>
+            <div style={{ marginTop: 20, display: "flex", justifyContent: "center", gap: 6 }}>
+              {[0,1,2].map(i => (
+                <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: C.gold, opacity: 0.3 + i * 0.3, animation: `pulse 1.5s ${i*0.2}s infinite` }} />
+              ))}
+            </div>
           </div>
-        ) : (
-          /* Chat view — mentor discussion */
+        ) : loading ? (
+          <div style={{ textAlign: "center", padding: "60px 0" }}>
+            <p style={{ fontSize: 15, color: C.textSecondary }}>教授正在思考…</p>
+          </div>
+        ) : mentorResponse ? (
           <>
-            {initialLoading ? (
-              <div style={{ textAlign: "center", padding: "60px 0", color: C.textTertiary }}>
-                <p style={{ fontSize: 15, fontFamily: C.fontBody }}>教授正在理解…</p>
-              </div>
-            ) : loading ? (
-              <div style={{ textAlign: "center", padding: "60px 0", color: C.textTertiary }}>
-                <p style={{ fontSize: 15 }}>教授正在思考…</p>
-              </div>
-            ) : mentorResponse ? (
-              <>
-                <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24, marginBottom: 16 }}>
-                  {mentorResponse.split("\n").map((line, i) => (
-                    <p key={i} style={{ fontSize: 15, color: C.text, lineHeight: 1.8, marginBottom: line.trim() ? 8 : 16, fontFamily: C.fontBody }}>
-                      {line || "\u00A0"}
-                    </p>
-                  ))}
-                </div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                  <input
-                    ref={inputRef}
-                    value={userAnswer}
-                    onChange={(e) => setUserAnswer(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="输入你的回答，Enter 确认…"
-                    style={{
-                      flex: 1, padding: "12px 16px", fontSize: 14,
-                      border: `1px solid ${C.border}`, borderRadius: 8,
-                      background: C.panel, color: C.text, fontFamily: C.font,
-                      outline: "none",
-                    }}
-                  />
-                  <button
-                    onClick={confirmDirection}
-                    style={{ padding: "12px 20px", background: C.gold, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontFamily: C.font, fontWeight: 500 }}
-                  >确认</button>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={switchQuestion} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textSecondary, padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontFamily: C.font }}>换一个问题</button>
-                  {affirmedThinking.length >= 2 && (
-                    <button onClick={generateOutline} disabled={generating} style={{ background: "none", border: `1px solid ${C.gold}`, color: C.gold, padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontFamily: C.font, fontWeight: 500 }}>
-                      {generating ? "生成中…" : "生成大纲 →"}
-                    </button>
-                  )}
-                </div>
-              </>
-            ) : null}
+            <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24, marginBottom: 16 }}>
+              {mentorResponse.split("\n").map((line, i) => (
+                <p key={i} style={{ fontSize: 15, color: C.text, lineHeight: 1.8, marginBottom: line.trim() ? 8 : 16, fontFamily: C.fontBody }}>
+                  {line || "\u00A0"}
+                </p>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              <input
+                ref={inputRef}
+                value={userAnswer}
+                onChange={(e) => setUserAnswer(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="输入你的回答，Enter 确认…"
+                style={{
+                  flex: 1, padding: "12px 16px", fontSize: 14,
+                  border: `1px solid ${C.border}`, borderRadius: 8,
+                  background: C.panel, color: C.text, fontFamily: C.font,
+                  outline: "none",
+                }}
+              />
+              <button
+                onClick={confirmDirection}
+                style={{ padding: "12px 20px", background: C.gold, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontFamily: C.font, fontWeight: 500 }}
+              >确认</button>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={switchQuestion} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textSecondary, padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontFamily: C.font }}>换一个问题</button>
+              {outlineReady && (
+                <button onClick={generateOutline} disabled={generating} style={{ background: C.gold, color: "#fff", border: "none", padding: "8px 20px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontFamily: C.font, fontWeight: 600 }}>
+                  {generating ? "生成中…" : "生成大纲 ✨"}
+                </button>
+              )}
+            </div>
           </>
-        )}
+        ) : null}
 
         {/* Sidebar: affirmed + ideas */}
         <div style={{ marginTop: 32, borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
