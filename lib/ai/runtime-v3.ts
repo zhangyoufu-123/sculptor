@@ -20,6 +20,8 @@ export interface RuntimeState {
   completeness: number;
   outline: string[];
   outputReady: boolean;
+  round: number;
+  wasReset: boolean;
 }
 
 export interface BlueprintSlot {
@@ -74,6 +76,8 @@ export function initState(anchor: string, genre?: string): RuntimeState {
     completeness: 0,
     outline: [],
     outputReady: false,
+    round: 0,
+    wasReset: false,
   };
 }
 
@@ -109,6 +113,8 @@ export async function runtimeLoop(
   state: RuntimeState,
   userInput: string = ""
 ): Promise<{ response: string; state: RuntimeState }> {
+  state.round += 1;
+
   // Step 1: Parse — understand what the user just said
   state = parseStep(state, userInput);
 
@@ -155,6 +161,7 @@ function parseStep(state: RuntimeState, input: string): RuntimeState {
         status: "empty",
       };
     }
+    state.wasReset = true;
     return state;
   }
 
@@ -281,10 +288,22 @@ function thinkStep(state: RuntimeState, gap: ReturnType<typeof findMissing>): st
   const context = `写作蓝图（${state.genre}）
 ━━━━━━━━━━━━━
 目标: ${state.goal}
+第${state.round}轮
 完成度: ${state.completeness}%
 已完成: ${stableList || "无"}
 
 `;
+
+  // Handle reset scenario
+  if (state.wasReset) {
+    return context + `用户刚才说"说错了"——这说明之前的理解不对。这是好事。先确认用户现在想往哪个方向走。不要说"没关系"或道歉，直接问新的方向。120字以内。`;
+  }
+
+  // Handle "开始写" scenario
+  if (state.outputReady) {
+    const allSlots = state.blueprint.map((s) => `${s.status === "stable" ? "✓" : "○"} ${s.label}: ${s.value.slice(0, 40)}`).join("\n");
+    return `所有部分已完成。以下是写作蓝图：\n${allSlots}\n\n现在生成大纲并引导用户进入写作。恭喜用户。120字以内。`;
+  }
 
   switch (gap.type) {
     case "welcome":
