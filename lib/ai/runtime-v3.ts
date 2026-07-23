@@ -205,7 +205,7 @@ function parseStep(state: RuntimeState, input: string): RuntimeState {
       const forceStable = inputCount >= 3 && conf < 0.5;
       state.blueprint[activeIdx] = {
         ...s, value: newValue, confidence: forceStable ? 0.65 : conf,
-        status: conf >= 0.7 || forceStable ? "stable" : "filling",
+        status: conf >= 0.6 || forceStable ? "stable" : "filling",
       };
     }
     // If no slot is filling, start the first empty slot
@@ -216,7 +216,7 @@ function parseStep(state: RuntimeState, input: string): RuntimeState {
         const conf = calcConfidence(input);
         state.blueprint[emptyIdx] = {
           ...s, value: input, confidence: conf,
-          status: conf >= 0.7 ? "stable" : "filling",
+          status: conf >= 0.6 ? "stable" : "filling",
         };
       }
     }
@@ -226,13 +226,14 @@ function parseStep(state: RuntimeState, input: string): RuntimeState {
 }
 
 function calcConfidence(text: string): number {
-  let score = 0.3;
-  if (text.length > 30) score += 0.15;
-  if (text.length > 80) score += 0.1;
-  if (/看到|听到|闻到|感觉到|味道|声音|颜色|光/.test(text)) score += 0.15;
-  if (/开心|难过|感动|震撼|安静|紧张|放松|温暖|冷/.test(text)) score += 0.1;
-  if (/因为|所以|因此|但是|然而|不过/.test(text)) score += 0.1;
+  let score = 0.4;  // raised base
+  if (text.length > 20) score += 0.1;
+  if (text.length > 60) score += 0.1;
+  if (/看到|听到|闻到|感觉到|味道|声音|颜色|光/.test(text)) score += 0.1;
+  if (/开心|难过|感动|震撼|安静|紧张|放松|温暖|冷|害怕|孤独/.test(text)) score += 0.1;
+  if (/因为|所以|因此|但是|然而|不过|觉得|认为/.test(text)) score += 0.15;
   if (/\d+/.test(text)) score += 0.1;
+  if (text.includes("互联网") || text.includes("社交") || text.includes("手机")) score += 0.05;
   return Math.min(1, score);
 }
 
@@ -275,17 +276,17 @@ function findMissing(state: RuntimeState): { type: GapType; slot?: BlueprintSlot
     return { type: "output", idx: -1 };
   }
 
-  // Deepen current filling slot if confidence < 0.7
+  // Deepen current filling slot if confidence < 0.6
   const fillingIdx = state.blueprint.findIndex(
-    (s) => s.status === "filling" && s.confidence < 0.7
+    (s) => s.status === "filling" && s.confidence < 0.6
   );
   if (fillingIdx >= 0) {
     return { type: "deepen", slot: state.blueprint[fillingIdx], idx: fillingIdx };
   }
 
-  // Confirm filling slot if confidence >= 0.7
+  // Confirm filling slot if confidence >= 0.6
   const highIdx = state.blueprint.findIndex(
-    (s) => s.status === "filling" && s.confidence >= 0.7
+    (s) => s.status === "filling" && s.confidence >= 0.6
   );
   if (highIdx >= 0) {
     return { type: "confirm", slot: state.blueprint[highIdx], idx: highIdx };
