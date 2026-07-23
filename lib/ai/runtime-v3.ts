@@ -143,10 +143,28 @@ export async function runtimeLoop(
 function parseStep(state: RuntimeState, input: string): RuntimeState {
   // Handle "开始写" / "可以写了" → trigger outline
   if (/开始写|可以写了|写吧|生成大纲|做大纲|出大纲/i.test(input)) {
-    // Mark all filling slots as stable
-    state.blueprint = state.blueprint.map((s) =>
-      s.status === "filling" ? { ...s, confidence: 0.8, status: "stable" } : s
-    );
+    const anyFilling = state.blueprint.some((s) => s.status === "filling");
+    if (anyFilling) {
+      // Mark all filling slots as stable
+      state.blueprint = state.blueprint.map((s) =>
+        s.status === "filling" ? { ...s, confidence: 0.8, status: "stable" } : s
+      );
+    } else {
+      // No filling slots — mark all non-empty slots as stable
+      state.blueprint = state.blueprint.map((s) =>
+        s.value.trim() ? { ...s, confidence: 0.8, status: "stable" } : s
+      );
+      // If still all empty, mark the first slot as stable with goal as value
+      if (state.blueprint.every((s) => !s.value.trim())) {
+        state.blueprint[0] = {
+          ...state.blueprint[0],
+          value: state.goal,
+          confidence: 0.6,
+          status: "stable",
+        };
+      }
+    }
+    state.outputReady = true;
     return state;
   }
 
