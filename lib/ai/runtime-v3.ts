@@ -255,6 +255,10 @@ function understandStep(state: RuntimeState): RuntimeState {
 type GapType = "welcome" | "fill_new" | "deepen" | "confirm" | "output";
 
 function findMissing(state: RuntimeState): { type: GapType; slot?: BlueprintSlot; idx: number } {
+  // outputReady overrides everything
+  if (state.outputReady) {
+    return { type: "output", idx: -1 };
+  }
   const stableCount = state.blueprint.filter((s) => s.status === "stable").length;
 
   // No stable slots → welcome
@@ -337,7 +341,8 @@ function thinkStep(state: RuntimeState, gap: ReturnType<typeof findMissing>): st
       return context + `「${gap.slot!.label}」看起来已经有足够内容（置信度 ${Math.round(gap.slot!.confidence * 100)}%）。问用户是否满意，要不要进入下一个部分。100字以内。`;
 
     case "output":
-      return context + `所有部分完成。恭喜用户，展示完成度100%。建议下一步：生成大纲进入写作。`;
+      const allSlots = state.blueprint.map((s) => `${s.status === "stable" ? "✓" : "○"} ${s.label}: ${s.value.slice(0, 40) || "(空)"}`).join("\n");
+      return context + `大纲已经就绪。恭喜用户，文章架构已经完全准备好了。列出蓝图中的每个部分。建议下一步：点击生成大纲进入写作。100字以内。\n\n${allSlots}`;
   }
 }
 
